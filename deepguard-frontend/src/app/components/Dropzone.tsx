@@ -4,12 +4,13 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, FileVideo, X, Sparkles } from "lucide-react";
 import { useDeepGuard } from "./DeepGuardProvider";
+import { api } from "@/lib/deepguard-api";
 
 const MAX_SIZE = 500 * 1024 * 1024;
 const ALLOWED = ["video/mp4", "video/webm", "video/quicktime"];
 
 export function Dropzone() {
-  const { uploadFile, uploadStatus, progress, error: ctxError, reset } = useDeepGuard();
+  const { uploadFile, uploadStatus, progress, error: ctxError, reset, verdict } = useDeepGuard();
   const [isDragging, setIsDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +47,9 @@ export function Dropzone() {
   const isProcessing = uploadStatus === "queued" || uploadStatus === "processing";
 
   useEffect(() => {
-    if (uploadStatus === "done") {
+    // When finished, scroll down smoothly to the details section,
+    // assuming they'll want to see the deeper reports. The Compact verdict is already above.
+    if (uploadStatus === "done" && verdict) {
       const element = document.getElementById("verdict");
       if (element) {
         setTimeout(() => {
@@ -54,24 +57,27 @@ export function Dropzone() {
         }, 300);
       }
     }
-  }, [uploadStatus]);
+  }, [uploadStatus, verdict]);
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-sm bg-zinc-700 inline-block" />
-        Upload Video
-      </h2>
+    <div className="h-full">
+      {/* Remove the H2 here because we grouped it in the two-column hero where it serves as the action block */
+       !verdict && (
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-zinc-200">
+          Upload Video
+        </h2>
+       )
+      }
 
       <AnimatePresence>
         {fileName && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            className="mb-4 flex items-center justify-between p-4 rounded-xl glass-card">
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}
+            className="mb-6 flex items-center justify-between p-4 nested-card">
             <div className="flex items-center gap-3">
               <FileVideo className="w-5 h-5 text-[var(--accent)]" />
-              <span className="text-sm text-zinc-200">{fileName}</span>
+              <span className="text-sm font-mono text-zinc-200">{fileName}</span>
               {isProcessing && (
-                <span className="text-xs text-[var(--accent)] animate-pulse">{progress || "Queued..."}</span>
+                <span className="text-xs text-[var(--accent)] font-mono animate-pulse">{progress || "Queued..."}</span>
               )}
             </div>
             <button onClick={handleClear} className="p-1 rounded-lg hover:bg-white/10 transition-colors"><X className="w-4 h-4 text-zinc-400 hover:text-white" /></button>
@@ -79,63 +85,52 @@ export function Dropzone() {
         )}
       </AnimatePresence>
 
-      <motion.div
+      <div
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={onDrop}
         onClick={() => fileRef.current?.click()}
-        whileHover={{ scale: 1.01 }}
-        whileTap={{ scale: 0.98 }}
-        className={`relative glass-card rounded-2xl p-16 text-center cursor-pointer transition-all duration-300 interactive-card ${
+        className={`relative glass-card h-64 border-dashed border-2 flex flex-col items-center justify-center p-8 text-center cursor-pointer interactive-card ${
           isDragging
-            ? "border-[var(--accent)]"
+            ? "border-[var(--accent)] bg-[var(--accent)]/5"
             : error || ctxError
-            ? "border-[var(--fake)]"
+            ? "border-[var(--fake)] bg-[var(--fake)]/5"
             : isProcessing
-            ? "border-[var(--accent)]"
-            : ""
+            ? "border-[var(--accent)]/30 border-solid"
+            : "border-white/10 hover:border-white/20 hover:bg-white/[0.01]"
         }`}
       >
         <input ref={fileRef} type="file" accept="video/*,.mp4,.webm,.mov" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); }} />
         {(error || ctxError) ? (
-          <div className="animate-fade-in-up">
-            <X className="w-12 h-12 mx-auto text-[var(--fake)] mb-3" />
-            <p className="text-[var(--fake)] font-medium text-lg">{ctxError || error}</p>
-            <p className="text-zinc-500 text-sm mt-2">Click to try again</p>
+          <div className="animate-fade-in text-center">
+            <X className="w-10 h-10 mx-auto text-[var(--fake)] mb-3" />
+            <p className="text-[var(--fake)] font-medium text-base mb-1">{ctxError || error}</p>
+            <p className="text-zinc-500 text-xs">Click to try again</p>
           </div>
         ) : isProcessing ? (
-          <div className="animate-fade-in-up">
-            <Upload className="w-12 h-12 mx-auto mb-4 text-[var(--accent)] animate-pulse" />
-            <p className="text-xl font-semibold mb-1 text-[var(--accent)]">
+          <div className="animate-fade-in text-center w-full max-w-[200px] mx-auto">
+            <Loader2 className="w-10 h-10 mx-auto mb-4 text-[var(--accent)] animate-spin" />
+            <p className="text-base font-semibold mb-1 text-zinc-100">
               {progress || "Analyzing..."}
             </p>
-            <p className="text-sm text-zinc-500">This may take 25-30 seconds</p>
-            <div className="mt-4 w-48 h-1 bg-white/10 rounded-full overflow-hidden mx-auto">
-              <motion.div
-                className="h-full bg-[var(--accent)] rounded-full"
-                animate={{ width: ["10%", "30%", "10%"] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              />
-            </div>
+            <p className="text-xs text-zinc-500 font-mono">Est 25-30s</p>
           </div>
         ) : (
-          <div>
-            <motion.div animate={isDragging ? { y: -8, scale: 1.1 } : { y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 300 }}>
-              <Upload className={`w-12 h-12 mx-auto mb-4 transition-colors duration-300 ${isDragging ? "text-[var(--accent)]" : "text-zinc-600"}`} />
-            </motion.div>
-            <p className="text-xl font-semibold mb-1 text-zinc-200">
-              Drag & drop your video
+          <div className="text-center">
+            <Upload className={`w-10 h-10 mx-auto mb-4 transition-colors duration-150 ${isDragging ? "text-[var(--accent)]" : "text-zinc-500"}`} />
+            <p className="text-base font-medium mb-1 text-zinc-200">
+              {isDragging ? "Drop your video here" : "Drag & drop your video"}
             </p>
-            <p className="text-sm text-zinc-500 font-mono">MP4, WebM, MOV · Max 500MB</p>
+            <p className="text-xs text-zinc-500 font-mono mb-4">MP4, WebM, MOV · Max 500MB</p>
             {!isDragging && !isProcessing && (
-              <div className="mt-4 inline-flex items-center gap-2 text-xs text-zinc-600">
-                <Sparkles className="w-3 h-3" />
-                <span>or click to browse</span>
+              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-400 bg-zinc-800/50 px-3 py-1.5 rounded-md">
+                <Sparkles className="w-3 h-3 text-[var(--accent)]" />
+                <span>Browse files</span>
               </div>
             )}
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

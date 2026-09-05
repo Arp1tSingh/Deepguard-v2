@@ -10,48 +10,83 @@ import { TimelineChart } from "./components/TimelineChart";
 import { ExportReport } from "./components/ExportReport";
 import { Footer } from "./components/Footer";
 import { CompactVerdict } from "./components/CompactVerdict";
+import { useDeepGuard } from "./components/DeepGuardProvider";
+
+function HeroSection() {
+  const { verdict } = useDeepGuard();
+
+  return (
+    <section id="hero" className="w-full">
+      <div className="text-center pt-8 pb-10">
+        <h1 className="text-5xl font-bold tracking-tight mb-4 text-[var(--accent)]">
+          DeepGuard
+        </h1>
+        <p className="text-[16px] text-zinc-400 max-w-2xl mx-auto leading-relaxed">
+          AI-powered deepfake detection with explainable Grad-CAM heatmaps and multi-signal forensic analysis.
+        </p>
+      </div>
+
+      <div className={`grid grid-cols-1 ${verdict ? 'lg:grid-cols-2 gap-8' : 'max-w-3xl mx-auto'} items-stretch`}>
+        {verdict && (
+          <div className="h-full">
+            <CompactVerdict />
+          </div>
+        )}
+        <div className="h-full">
+          <Dropzone />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <div className="mb-6">
+      <h2 className="text-2xl font-bold text-zinc-100 mb-2">{title}</h2>
+      <div className="h-[1px] w-24 bg-[var(--accent)]" />
+    </div>
+  );
+}
 
 export default function Home() {
   return (
     <DeepGuardProvider>
       <Header />
-      <main className="relative z-10 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 space-y-16 animate-fade-in">
-        {/* Hero */}
-        <section className="text-center pt-8 pb-4">
-          <h1 className="text-5xl font-bold tracking-tight mb-4 text-[var(--accent)]">
-            DeepGuard
-          </h1>
-          <p className="text-[16px] text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-            AI-powered deepfake detection with explainable Grad-CAM heatmaps and multi-signal forensic analysis.
-          </p>
-        </section>
+      <main className="relative z-10 flex-1 w-full mx-auto pb-12 space-y-16 animate-fade-in">
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <HeroSection />
+        </div>
 
-        {/* North-Star Metric (Appears when verdict is ready) */}
-        <CompactVerdict />
-
-        <section id="upload">
-          <Dropzone />
-        </section>
-
-        <section id="verdict">
+        <section id="verdict" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <SectionHeader title="Forensic Detailed Analysis" />
           <ReportPanel />
         </section>
 
-        <section id="evidence">
-          <EvidenceInspector />
+        {/* Evidence Inspector gets full-bleed treatments or negative margins on desktop */}
+        <section id="evidence" className="w-full border-t border-b border-white/5 bg-[rgba(255,255,255,0.01)] py-16">
+          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-12 w-full">
+            <SectionHeader title="Evidence Inspector" />
+            <EvidenceInspector />
+          </div>
         </section>
 
-        <section id="signals">
+        <section id="signals" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <SectionHeader title="Forensic Signals" />
           <SignalBreakdown />
         </section>
 
-        <section id="timeline">
+        <section id="timeline" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <SectionHeader title="Temporal Analysis" />
           <TimelineChart />
         </section>
 
-        <section id="export" className="pb-12">
+        <section id="export" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <SectionHeader title="Export Report" />
           <ExportReport />
         </section>
+
       </main>
       <Footer />
     </DeepGuardProvider>
