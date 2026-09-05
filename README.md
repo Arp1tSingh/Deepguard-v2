@@ -207,6 +207,32 @@ deepguard/
 
 ---
 
+## Why is DeepfakeBench vendored inside this repo?
+
+`DeepfakeBench/` is the upstream open-source project
+([SCLBD/DeepfakeBench](https://github.com/SCLBD/DeepfakeBench)) that provides
+the UCF, SPSL, and Xception detector implementations. It is copied into this
+repo (rather than referenced as a submodule or package) for two reasons:
+
+1. **The backend imports it directly.** `deepguard-backend/analysis.py` adds
+   `DeepfakeBench/training` to `sys.path` and loads the detector classes,
+   backbone networks, YAML configs, and `.pth` checkpoints from there. Without
+   this folder, the backend boots but falls back to mock scores.
+2. **It carries local patches.** At least one upstream file is patched for
+   this project — `training/dataset/lsda_dataset.py` calls
+   `torch.cuda.get_device_name()` at import time, which crashes on machines
+   without an NVIDIA GPU. The vendored copy guards that call so CPU-only
+   setups work. A fresh upstream clone would not include this fix.
+
+Notes:
+
+- Only a slice of it is actually used (`detectors/`, `networks/`, `loss/`,
+  `metrics/`, three YAML configs). The `analysis/`, `preprocessing/`,
+  `datasets/` folders and training scripts are unused by DeepGuard.
+- The heavy part — the three `.pth` checkpoints (~350 MB) — is **git-ignored**
+  and lives only on your machine under `DeepfakeBench/training/weights/`.
+  What's committed is source code (~5 MB).
+
 ## Known limitations
 
 - **CPU-only inference** — slow on low-end hardware by design; GPU support is
