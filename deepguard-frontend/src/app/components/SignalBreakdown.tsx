@@ -4,17 +4,9 @@ import { motion } from "framer-motion";
 import { Radar, Activity } from "lucide-react";
 import { useDeepGuard } from "./DeepGuardProvider";
 
-const SIGNALS = [
-  { key: "textureDeficit",        label: "Texture Deficit",       icon: "🧬", color: "#22d3ee", glowClass: "glow-cyan" },
-  { key: "frequencyArtifacts",    label: "Frequency Artifacts",   icon: "📡", color: "#a78bfa", glowClass: "glow-violet" },
-  { key: "lightingInconsistency", label: "Lighting Inconsistency",icon: "💡", color: "#fbbf24", glowClass: "glow-amber" },
-  { key: "biometricAbnormality",  label: "Biometric Abnormality", icon: "💓", color: "#fb7185", glowClass: "glow-rose" },
-  { key: "compressionArtifacts",  label: "Compression Artifacts", icon: "📦", color: "#34d399", glowClass: "glow-emerald" },
-  { key: "noiseLevel",            label: "Noise Level",           icon: "🌊", color: "#f472b6", glowClass: "glow-rose" },
-] as const;
-
 export function SignalBreakdown() {
-  const { signals } = useDeepGuard();
+  const { signals, uploadStatus } = useDeepGuard();
+  const isLoading = !signals && (uploadStatus === "queued" || uploadStatus === "processing");
 
   return (
     <div>
@@ -24,64 +16,87 @@ export function SignalBreakdown() {
       </h2>
 
       <div className="glass-card rounded-2xl p-6 glow-border">
-        {!signals ? (
-          <p className="text-zinc-600 text-center py-8">Upload a video to view forensic signal analysis</p>
-        ) : (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400" />
+            <span className="ml-3 text-zinc-500">Loading signals...</span>
+          </div>
+        ) : signals ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left: signal meters */}
+            {/* Left: per-model bars */}
             <div className="space-y-4">
-              {SIGNALS.map(({ key, label, icon, color, glowClass }, i) => {
-                const value = signals[key];
-                return (
-                  <motion.div key={key} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08, duration: 0.4 }}
-                    className="glass-card rounded-xl p-3 hover-lift glow-border group">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-zinc-300">{icon} {label}</span>
-                      <span className="text-sm font-mono font-bold" style={{ color }}>{value.toFixed(1)}%</span>
-                    </div>
-                    <div className="signal-meter">
-                      <motion.div className="signal-meter-fill" style={{ backgroundColor: color }}
-                        initial={{ width: 0 }} animate={{ width: `${value}%` }} transition={{ delay: i * 0.08 + 0.2, duration: 0.9, ease: "easeOut" }} />
-                    </div>
-                  </motion.div>
-                );
-              })}
+              {signals.models.map((model, i) => (
+                <motion.div key={model.name} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1, duration: 0.4 }}
+                  className="glass-card rounded-xl p-4 hover-lift glow-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-zinc-300 font-medium">{model.name}</span>
+                    <span className="text-sm font-mono font-bold text-cyan-400">{model.score.toFixed(1)}%</span>
+                  </div>
+                  <div className="signal-meter">
+                    <motion.div className="signal-meter-fill" style={{ backgroundColor: model.score >= 70 ? "#fb7185" : model.score >= 50 ? "#fbbf24" : "#34d399" }}
+                      initial={{ width: 0 }} animate={{ width: `${model.score}%` }} transition={{ delay: i * 0.1 + 0.2, duration: 0.9, ease: "easeOut" }} />
+                  </div>
+                </motion.div>
+              ))}
             </div>
 
-            {/* Right: corroboration */}
+            {/* Right: agreement + spread */}
             <div className="space-y-4">
-              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}
                 className="glass-card glow-border p-6 rounded-xl text-center hover-lift">
                 <div className="flex items-center gap-2 mb-4 justify-center">
                   <Radar className="w-5 h-5 text-cyan-400 animate-pulse" />
-                  <h3 className="font-bold">Corroboration Score</h3>
+                  <h3 className="font-bold">Agreement Level</h3>
                 </div>
-                <p className="text-6xl font-bold gradient-text">
-                  {signals.corroborationScore.toFixed(1)}%
+                <p className={`text-6xl font-bold ${
+                  signals.agreement === "high" ? "text-emerald-400" :
+                  signals.agreement === "mixed" ? "text-amber-400" :
+                  "text-rose-400"
+                }`}>
+                  {signals.agreement === "high" ? "✓" : signals.agreement === "mixed" ? "≈" : "✗"}
                 </p>
-                <p className="text-xs text-zinc-500 mt-2">Agreement: neural network ↔ classical signals</p>
-                <div className="mt-4 progress-bar">
-                  <motion.div className="progress-bar-fill"
-                    initial={{ width: 0 }} animate={{ width: `${signals.corroborationScore}%` }} transition={{ delay: 0.9, duration: 1.2, ease: "easeOut" }} />
+                <span className={`text-sm font-semibold px-3 py-1 rounded-full mt-2 inline-block ${
+                  signals.agreement === "high" ? "bg-emerald-500/20 text-emerald-400" :
+                  signals.agreement === "mixed" ? "bg-amber-500/20 text-amber-400" :
+                  "bg-rose-500/20 text-rose-400"
+                }`}>
+                  {signals.agreement.toUpperCase()}
+                </span>
+                <p className="text-xs text-zinc-500 mt-3">Model consensus across UCF, SPSL, Xception</p>
+              </motion.div>
+
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
+                className="glass-card glow-border p-4 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-medium">Agreement Spread</span>
+                </div>
+                <p className="text-3xl font-bold gradient-text">{signals.agreement_spread.toFixed(1)}%</p>
+                <p className="text-xs text-zinc-500 mt-1">Percentage-point gap between highest and lowest model score</p>
+                <div className="mt-3 h-2 bg-white/10 rounded-full overflow-hidden">
+                  <motion.div className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-400"
+                    initial={{ width: 0 }} animate={{ width: `${Math.min(100, signals.agreement_spread * 5)}%` }} transition={{ delay: 0.9, duration: 1.2, ease: "easeOut" }} />
                 </div>
               </motion.div>
 
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
-                className="p-4 rounded-xl glass-card glow-border">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
+                className="p-4 rounded-xl glass-card">
                 <div className="flex items-center gap-2 mb-2">
-                  <Activity className="w-4 h-4 text-emerald-400" />
-                  <span className="text-sm font-medium">Summary</span>
+                  <Activity className="w-4 h-4 text-cyan-400" />
+                  <span className="text-sm font-medium">Interpretation</span>
                 </div>
                 <p className="text-xs text-zinc-400 leading-relaxed">
-                  {signals.corroborationScore > 80
-                    ? "Strong agreement between deep learning model and classical forensic signals — high reliability result."
-                    : signals.corroborationScore > 60
-                    ? "Moderate agreement. Some signals diverge from the neural network prediction."
-                    : "Low corroboration. Consider using full model weights for higher accuracy."}
+                  {signals.agreement === "high"
+                    ? "All three models agree strongly — this result is highly reliable."
+                    : signals.agreement === "mixed"
+                    ? "Models partially agree. Results should be interpreted with some caution."
+                    : "Models disagree significantly. Individual model results vary widely — review each model's score carefully."}
                 </p>
               </motion.div>
             </div>
           </div>
+        ) : (
+          <p className="text-zinc-600 text-center py-8">Upload a video to view forensic signal analysis</p>
         )}
       </div>
     </div>

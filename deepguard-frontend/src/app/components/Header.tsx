@@ -1,12 +1,14 @@
-'use client';
+"use client";
 
 import { motion } from 'framer-motion';
 import { ShieldCheck, Menu, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
+import { useDeepGuard } from "./DeepGuardProvider";
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { uploadStatus } = useDeepGuard();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -74,6 +76,18 @@ export function Header() {
                 </motion.a>
               ))}
             </nav>
+
+            {/* Processing indicator */}
+            {(uploadStatus === "queued" || uploadStatus === "processing") && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30"
+              >
+                <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                <span className="text-xs text-cyan-400 font-medium">Analyzing...</span>
+              </motion.div>
+            )}
 
             {/* Mobile Menu Button */}
             <button

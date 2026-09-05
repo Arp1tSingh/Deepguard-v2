@@ -1,109 +1,176 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
+import { api } from "@/lib/deepguard-api";
 
-interface SignalData {
-  textureDeficit: number;
-  frequencyArtifacts: number;
-  lightingInconsistency: number;
-  biometricAbnormality: number;
-  compressionArtifacts: number;
-  noiseLevel: number;
-  corroborationScore: number;
+interface ModelInfo {
+  key: string;
+  name: string;
+  score: number;
+  verified: boolean;
+  note: string;
+}
+
+interface VerdictData {
+  label: string;
+  confidence: number;
+  agreement: string;
+  models: ModelInfo[];
+}
+
+interface EvidenceFrame {
+  timestamp: string;
+  time_sec: number;
+  face_confidence: number;
+  original_frame_url: string;
+  heatmap_url: string;
+}
+
+interface EvidenceData {
+  original_video_url: string;
+  frames: EvidenceFrame[];
+}
+
+interface SignalsData {
+  models: Array<{ name: string; score: number }>;
+  agreement: string;
+  agreement_spread: number;
 }
 
 interface TimelinePoint {
-  timestamp: number;
-  confidence: number;
+  time_sec: number;
+  timestamp: string;
+  xception: number;
+  spsl: number;
+  ucf: number;
 }
 
-interface AnalysisState {
-  isAnalyzing: boolean;
-  uploadProgress: number;
-  verdict: "real" | "fake" | null;
-  confidence: number;
-  isEstimate: boolean;
-  videoUrl: string | null;
-  fileName: string | null;
-  signals: SignalData | null;
-  timelineData: TimelinePoint[] | null;
+interface TimelineData {
+  duration_sec: number;
+  points: TimelinePoint[];
 }
 
-interface DeepGuardContextType extends AnalysisState {
-  setUploadProgress: (p: number) => void;
-  setVerdict: (v: "real" | "fake" | null, confidence: number, isEstimate: boolean) => void;
-  setVideoData: (url: string | null, name: string | null) => void;
-  setSignals: (s: SignalData) => void;
-  setTimelineData: (t: TimelinePoint[]) => void;
-  setIsAnalyzing: (v: boolean) => void;
+interface AppState {
+  videoId: string | null;
+  uploadStatus: "idle" | "queued" | "processing" | "done" | "error";
+  progress: string | null;
+  error: string | null;
+  verdict: VerdictData | null;
+  evidence: EvidenceData | null;
+  signals: SignalsData | null;
+  timeline: TimelineData | null;
+}
+
+interface DeepGuardContextType extends AppState {
+  uploadFile: (file: File) => Promise<void>;
   reset: () => void;
 }
 
 const DeepGuardContext = createContext<DeepGuardContextType | null>(null);
 
 export function DeepGuardProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AnalysisState>({
-    isAnalyzing: false,
-    uploadProgress: 0,
+  const [state, setState] = useState<AppState>({
+    videoId: null,
+    uploadStatus: "idle",
+    progress: null,
+    error: null,
     verdict: null,
-    confidence: 0,
-    isEstimate: false,
-    videoUrl: null,
-    fileName: null,
+    evidence: null,
     signals: null,
-    timelineData: null,
+    timeline: null,
   });
 
-  const setUploadProgress = useCallback((p: number) => {
-    setState((s) => ({ ...s, uploadProgress: p }));
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
   }, []);
 
-  const setVerdict = useCallback((v: "real" | "fake" | null, confidence: number, isEstimate: boolean) => {
-    setState((s) => ({ ...s, verdict: v, confidence, isEstimate }));
+  const fetchResults = useCallback(async (videoId: string) => {
+    try {
+      const [verdict, evidence, signals, timeline] = await Promise.all([
+        api.getVerdict(videoId),
+        api.getEvidence(videoId),
+        api.getSignals(videoId),
+        api.getTimeline(videoId),
+      ]);
+      setState((prev) => ({ ...prev, verdict, evidence, signals, timeline }));
+    } catch (e: any) {
+       setState((prev) => ({ ...prev, error: e.message || "Failed to fetch results" }));
+    }
   }, []);
 
-  const setVideoData = useCallback((url: string | null, name: string | null) => {
-    setState((s) => ({ ...s, videoUrl: url, fileName: name }));
-  }, []);
+  const startPolling = useCallback((videoId: string) => {
+    stopPolling();
+    pollRef.current = setInterval(async () => {
+      try {
+        const status = await api.getStatus(videoId);
+        setState((prev) => ({
+          ...prev,
+          uploadStatus: status.status === "done" ? "done" : status.status === "error" ? "error" : "processing",
+          progress: status.progress,
+          error: status.error ?? null,
+        }));
+        if (status.status === "done") {
+          stopPolling();
+          fetchResults(videoId);
+        } else if (status.status === "error") {
+            stopPolling();
+        }
+      } catch {
+        setState((prev) => ({ ...prev, uploadStatus: "error", error: "Failed to poll status" }));
+        stopPolling();
+      }
+    }, 2500);
+  }, [stopPolling, fetchResults]);
 
-  const setSignals = useCallback((s: SignalData) => {
-    setState((s2) => ({ ...s2, signals: s }));
-  }, []);
 
-  const setTimelineData = useCallback((t: TimelinePoint[]) => {
-    setState((s) => ({ ...s, timelineData: t }));
-  }, []);
+  const uploadFile = useCallback(async (file: File) => {
+    stopPolling();
+    setState({
+      videoId: null,
+      uploadStatus: "queued",
+      progress: null,
+      error: null,
+      verdict: null,
+      evidence: null,
+      signals: null,
+      timeline: null,
+    });
 
-  const setIsAnalyzing = useCallback((v: boolean) => {
-    setState((s) => ({ ...s, isAnalyzing: v }));
-  }, []);
+    try {
+      const { video_id } = await api.uploadVideo(file);
+      setState((prev) => ({ ...prev, videoId: video_id, uploadStatus: "queued" }));
+      startPolling(video_id);
+    } catch (err: any) {
+      setState((prev) => ({ ...prev, uploadStatus: "error", error: err.message || "Upload failed" }));
+    }
+  }, [stopPolling, startPolling]);
 
   const reset = useCallback(() => {
+    stopPolling();
     setState({
-      isAnalyzing: false,
-      uploadProgress: 0,
+      videoId: null,
+      uploadStatus: "idle",
+      progress: null,
+      error: null,
       verdict: null,
-      confidence: 0,
-      isEstimate: false,
-      videoUrl: null,
-      fileName: null,
+      evidence: null,
       signals: null,
-      timelineData: null,
+      timeline: null,
     });
-  }, []);
+  }, [stopPolling]);
+
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
 
   return (
     <DeepGuardContext.Provider
-      value={{
-        ...state,
-        setUploadProgress,
-        setVerdict,
-        setVideoData,
-        setSignals,
-        setTimelineData,
-        setIsAnalyzing,
-        reset,
-      }}
+      value={{ ...state, uploadFile, reset }}
     >
       {children}
     </DeepGuardContext.Provider>
@@ -116,4 +183,4 @@ export function useDeepGuard() {
   return ctx;
 }
 
-export type { SignalData, TimelinePoint, AnalysisState };
+export type { VerdictData, EvidenceData, EvidenceFrame, SignalsData, TimelineData, TimelinePoint, ModelInfo, AppState };

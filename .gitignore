@@ -1,3 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+env/
+.env
+.venv/
+dummy_pretrained.pth
+sim.py
+sim2.py
+sim.mp4
+test.mp4
+
+# Node
 node_modules/
 .next/
-.env
+out/
+build/
+.npm
+npm-debug.log
+
+# Project specific
+deepguard-backend/storage/
+DeepfakeBench/training/weights/*.pth
+
+# OS
+.DS_Store
+Thumbs.db
