@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from 'framer-motion';
 import { ShieldCheck, Menu, X } from 'lucide-react';
 import { useState, useEffect } from "react";
 import { useDeepGuard } from "./DeepGuardProvider";
@@ -30,68 +29,56 @@ export function Header() {
   return (
     <>
       <header
-        className={`fixed top-0 w-full z-50 transition-all duration-500 ${
+        className={`fixed top-0 w-full z-50 transition-all duration-300 ${
           scrolled 
-            ? 'glass-header py-3 shadow-2xl shadow-black/20' 
+            ? 'glass-header py-3 shadow-md black/5' 
             : 'py-5'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, ease: 'easeOut' }}
-              className="flex items-center gap-3"
-            >
+            <div className="flex items-center gap-3">
               <div className="relative">
-                <div className="relative w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center">
-                  <ShieldCheck className="w-6 h-6 text-white" />
+                <div className="relative w-8 h-8 rounded-lg bg-[var(--accent)] flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5 text-zinc-900" />
                 </div>
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-xl font-bold text-[var(--accent)]">
+                <h1 className="text-lg font-bold text-[var(--accent)] leading-none">
                   DeepGuard
                 </h1>
-                <p className="text-[10px] text-zinc-500 -mt-1 tracking-wider uppercase">
+                <p className="text-[10px] text-zinc-500 font-medium tracking-wider uppercase mt-0.5">
                   Forensic AI
                 </p>
               </div>
-            </motion.div>
+            </div>
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-1">
-              {navItems.map((item, i) => (
-                <motion.a
+              {navItems.map((item) => (
+                <a
                   key={item.id}
                   href={`#${item.id}`}
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: i * 0.05 }}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white transition-colors duration-200"
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white transition-colors duration-150"
                 >
                   {item.label}
-                </motion.a>
+                </a>
               ))}
             </nav>
 
             {/* Processing indicator */}
             {(uploadStatus === "queued" || uploadStatus === "processing") && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--accent)]/10 border border-[var(--accent)]/30"
-              >
+              <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--accent)]/10 border border-[var(--accent)]/30">
                 <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
                 <span className="text-xs text-[var(--accent)] font-medium">Analyzing...</span>
-              </motion.div>
+              </div>
             )}
 
             {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden w-10 h-10 rounded-xl glass flex items-center justify-center interactive-card"
+              className="lg:hidden w-10 h-10 rounded-lg glass flex items-center justify-center interactive-card"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -99,24 +86,22 @@ export function Header() {
         </div>
 
         {/* Mobile Menu */}
-        <motion.div
-          initial={false}
-          animate={{ height: mobileMenuOpen ? 'auto' : 0, opacity: mobileMenuOpen ? 1 : 0 }}
-          className="lg:hidden overflow-hidden border-t border-white/5"
+        <div
+          className={`lg:hidden overflow-hidden border-t border-white/5 transition-all duration-200 ${mobileMenuOpen ? 'block' : 'hidden'}`}
         >
-          <div className="px-4 py-4 space-y-1">
+          <div className="px-4 py-4 space-y-1 bg-black/90">
             {navItems.map((item) => (
               <a
                 key={item.id}
                 href={`#${item.id}`}
                 onClick={() => setMobileMenuOpen(false)}
-                className="block px-4 py-3 rounded-xl text-sm font-medium text-zinc-300 hover:text-white hover:bg-white/5 transition-all"
+                className="block px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
               >
                 {item.label}
               </a>
             ))}
           </div>
-        </motion.div>
+        </div>
       </header>
 
       {/* Spacer */}
