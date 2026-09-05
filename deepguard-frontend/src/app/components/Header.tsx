@@ -46,13 +46,12 @@ export function Header() {
               className="flex items-center gap-3"
             >
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-cyan-400 to-violet-600 rounded-xl blur-lg opacity-60 animate-pulse" />
-                <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-violet-600 flex items-center justify-center glow-cyan">
+                <div className="relative w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center">
                   <ShieldCheck className="w-6 h-6 text-white" />
                 </div>
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-xl font-bold gradient-text">
+                <h1 className="text-xl font-bold text-[var(--accent)]">
                   DeepGuard
                 </h1>
                 <p className="text-[10px] text-zinc-500 -mt-1 tracking-wider uppercase">
@@ -70,7 +69,7 @@ export function Header() {
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: i * 0.05 }}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-300 hover:text-white hover:bg-white/5 transition-all duration-300 hover:shadow-lg hover:shadow-violet-500/10"
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white transition-colors duration-200"
                 >
                   {item.label}
                 </motion.a>
@@ -82,17 +81,17 @@ export function Header() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30"
+                className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--accent)]/10 border border-[var(--accent)]/30"
               >
-                <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                <span className="text-xs text-cyan-400 font-medium">Analyzing...</span>
+                <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
+                <span className="text-xs text-[var(--accent)] font-medium">Analyzing...</span>
               </motion.div>
             )}
 
             {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden w-10 h-10 rounded-xl glass flex items-center justify-center hover-lift"
+              className="lg:hidden w-10 h-10 rounded-xl glass flex items-center justify-center interactive-card"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>

@@ -36,8 +36,8 @@ export default function Home() {
       <main className="relative z-10 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 space-y-12">
         {/* Hero */}
         <section ref={heroRef} className={`text-center pt-10 scroll-reveal-scale ${heroVisible ? "visible" : ""}`}>
-          <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight mb-4">
-            <span className="gradient-text">DeepGuard</span>
+          <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight mb-4 text-[var(--accent)]">
+            DeepGuard
           </h1>
           <p className="text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed">
             AI-powered deepfake detection with explainable Grad-CAM heatmaps and multi-signal forensic analysis.

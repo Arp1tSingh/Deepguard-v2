@@ -4,18 +4,7 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Clock } from "lucide-react";
 import { useDeepGuard } from "./DeepGuardProvider";
-
-const MODEL_COLORS: Record<string, string> = {
-  xception: "#fb7185",
-  spsl: "#fbbf24",
-  ucf: "#22d3ee",
-};
-
-const MODEL_NAMES: Record<string, string> = {
-  xception: "Xception",
-  spsl: "SPSL",
-  ucf: "UCF",
-};
+import { MODEL_COLORS, MODEL_NAMES } from "@/lib/theme";
 
 const MODEL_KEYS = ["xception", "spsl", "ucf"] as const;
 
@@ -67,12 +56,12 @@ export function TimelineChart() {
     return (
       <div>
         <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-rose-400 inline-block animate-pulse" />
+          <span className="w-2 h-2 rounded-sm bg-zinc-700 inline-block" />
           Temporal Analysis
         </h2>
         <div className="glass-card rounded-2xl p-6">
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-400" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-500" />
             <span className="ml-3 text-zinc-500">Loading timeline...</span>
           </div>
         </div>
@@ -84,7 +73,7 @@ export function TimelineChart() {
     return (
       <div>
         <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-rose-400 inline-block animate-pulse" />
+          <span className="w-2 h-2 rounded-sm bg-zinc-700 inline-block" />
           Temporal Analysis
         </h2>
         <div className="glass-card rounded-2xl p-6">
@@ -100,16 +89,16 @@ export function TimelineChart() {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-rose-400 inline-block animate-pulse" />
+        <span className="w-2 h-2 rounded-sm bg-zinc-700 inline-block" />
         Temporal Analysis
       </h2>
 
-      <div className="glass-card rounded-2xl p-6 glow-border">
+      <div className="glass-card rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 text-sm text-zinc-400"><Clock className="w-4 h-4" /><span>Fake probability over time</span></div>
           <div className="flex items-center gap-4 text-xs flex-wrap">
             {MODEL_KEYS.map((key) => (
-              <span key={key} className="flex items-center gap-1">
+              <span key={key} className="flex items-center gap-1 text-zinc-400">
                 <span className="w-4 h-0.5 inline-block rounded" style={{ backgroundColor: MODEL_COLORS[key] }} />
                 {MODEL_NAMES[key]}
               </span>
@@ -122,14 +111,10 @@ export function TimelineChart() {
             <defs>
               {MODEL_KEYS.map((key) => (
                 <linearGradient key={key} id={`tg-${key}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={MODEL_COLORS[key]} stopOpacity={0.25} />
+                  <stop offset="0%" stopColor={MODEL_COLORS[key]} stopOpacity={0.2} />
                   <stop offset="100%" stopColor={MODEL_COLORS[key]} stopOpacity={0} />
                 </linearGradient>
               ))}
-              <filter id="glow">
-                <feGaussianBlur stdDeviation="2" result="coloredBlur" />
-                <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
-              </filter>
             </defs>
             {[25, 50, 75].map((v) => (
               <line key={v} x1={PAD} y1={H - PAD - (v / 100) * (H - PAD * 2)} x2={W - PAD} y2={H - PAD - (v / 100) * (H - PAD * 2)} stroke="rgba(255,255,255,0.05)" strokeDasharray="4,4" />
@@ -138,17 +123,17 @@ export function TimelineChart() {
               <motion.path key={`area-${key}`} d={areaPaths[key]} fill={`url(#tg-${key})`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} />
             ))}
             {MODEL_KEYS.map((key) => (
-              <motion.path key={`line-${key}`} d={linePaths[key]} fill="none" stroke={MODEL_COLORS[key]} strokeWidth={2} strokeLinecap="round" filter="url(#glow)"
+              <motion.path key={`line-${key}`} d={linePaths[key]} fill="none" stroke={MODEL_COLORS[key]} strokeWidth={2} strokeLinecap="round"
                 initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, ease: "easeOut" }} />
             ))}
             {peaks.map((p, i) => (
-              <motion.circle key={i} cx={p.x} cy={p.y} r={4} fill="#fbbf24" filter="url(#glow)" initial={{ r: 0 }} animate={{ r: 4 }} transition={{ delay: 1.6 + i * 0.15 }} />
+              <motion.circle key={i} cx={p.x} cy={p.y} r={4} fill="#fff" opacity={0.5} initial={{ r: 0 }} animate={{ r: 4 }} transition={{ delay: 1.6 + i * 0.15 }} />
             ))}
             {hovered !== null && xPts[hovered] && (
-              <circle cx={xPts[hovered].x} cy={xPts[hovered].y} r={5} fill="white" opacity={0.8} filter="url(#glow)" />
+              <circle cx={xPts[hovered].x} cy={xPts[hovered].y} r={5} fill="white" opacity={0.8} />
             )}
           </svg>
-          <div className="flex justify-between text-[10px] text-zinc-600 px-4 mt-1">
+          <div className="flex justify-between text-[10px] text-zinc-600 px-4 mt-1 font-mono">
             {Array.from({ length: Math.min(7, timeline.points.length) }, (_, i) => {
               const idx = Math.floor((i / 6) * (timeline.points.length - 1));
               return <span key={i}>{timeline.points[idx]?.timestamp ?? ""}</span>;
@@ -158,15 +143,16 @@ export function TimelineChart() {
 
         <div className="mt-4 grid grid-cols-3 sm:grid-cols-6 gap-2">
           {timeline.points.filter((_, i) => i % Math.max(1, Math.floor(timeline.points.length / 6)) === 0).slice(0, 6).map((d, i) => (
-            <motion.button key={i} whileHover={{ scale: 1.08, y: -2 }} whileTap={{ scale: 0.95 }}
+            <motion.button key={i} whileHover={{ y: -2 }} whileTap={{ scale: 0.95 }}
               onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}
-              className="p-2 rounded-lg text-center text-xs transition-all duration-300 glass-card hover:border-rose-500/30">
-              <p className="font-mono font-bold text-rose-400">{d.xception.toFixed(0)}%</p>
-              <p className="text-[10px] mt-0.5 text-zinc-500">{d.timestamp}</p>
+              className="p-2 rounded-lg text-center text-xs transition-all duration-300 glass-card interactive-card">
+              <p className="font-mono font-bold text-zinc-200">{d.xception.toFixed(0)}%</p>
+              <p className="text-[10px] mt-0.5 text-zinc-500 font-mono">{d.timestamp}</p>
             </motion.button>
           ))}
         </div>
 
+        {/* Model legend values */}
         <div className="mt-4 grid grid-cols-3 gap-2">
           {MODEL_KEYS.map((key) => {
             const lastPoint = timeline.points[timeline.points.length - 1];

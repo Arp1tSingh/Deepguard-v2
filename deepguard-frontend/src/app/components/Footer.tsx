@@ -8,11 +8,11 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-violet-600 flex items-center justify-center glow-cyan">
+            <div className="w-8 h-8 rounded-lg bg-[var(--accent)] flex items-center justify-center">
               <ShieldCheck className="w-4 h-4 text-white" />
             </div>
             <div>
-              <span className="text-sm font-semibold gradient-text">DeepGuard</span>
+              <span className="text-sm font-semibold text-[var(--accent)]">DeepGuard</span>
               <span className="text-zinc-600 text-xs ml-2">v1.0</span>
             </div>
           </div>
