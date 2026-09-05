@@ -49,6 +49,46 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
+function DashboardContent() {
+  const { verdict, uploadStatus } = useDeepGuard();
+
+  if (uploadStatus !== "done" || !verdict) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-16 animate-fade-in content-container">
+      <section id="verdict" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <SectionHeader title="Forensic Detailed Analysis" />
+        <ReportPanel />
+      </section>
+
+      {/* Evidence Inspector gets full-bleed treatments or negative margins on desktop */}
+      <section id="evidence" className="w-full border-t border-b border-white/5 bg-[rgba(255,255,255,0.01)] py-16">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-12 w-full">
+          <SectionHeader title="Evidence Inspector" />
+          <EvidenceInspector />
+        </div>
+      </section>
+
+      <section id="signals" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <SectionHeader title="Forensic Signals" />
+        <SignalBreakdown />
+      </section>
+
+      <section id="timeline" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <SectionHeader title="Temporal Analysis" />
+        <TimelineChart />
+      </section>
+
+      <section id="export" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <SectionHeader title="Export Report" />
+        <ExportReport />
+      </section>
+    </div>
+  );
+}
+
 export default function Home() {
   return (
     <DeepGuardProvider>
@@ -59,33 +99,7 @@ export default function Home() {
           <HeroSection />
         </div>
 
-        <section id="verdict" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <SectionHeader title="Forensic Detailed Analysis" />
-          <ReportPanel />
-        </section>
-
-        {/* Evidence Inspector gets full-bleed treatments or negative margins on desktop */}
-        <section id="evidence" className="w-full border-t border-b border-white/5 bg-[rgba(255,255,255,0.01)] py-16">
-          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-12 w-full">
-            <SectionHeader title="Evidence Inspector" />
-            <EvidenceInspector />
-          </div>
-        </section>
-
-        <section id="signals" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <SectionHeader title="Forensic Signals" />
-          <SignalBreakdown />
-        </section>
-
-        <section id="timeline" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <SectionHeader title="Temporal Analysis" />
-          <TimelineChart />
-        </section>
-
-        <section id="export" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <SectionHeader title="Export Report" />
-          <ExportReport />
-        </section>
+        <DashboardContent />
 
       </main>
       <Footer />
