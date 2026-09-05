@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, FileVideo, X, Sparkles } from "lucide-react";
+import { Upload, FileVideo, X, Sparkles, Loader2 } from "lucide-react";
 import { useDeepGuard } from "./DeepGuardProvider";
 import { api } from "@/lib/deepguard-api";
 

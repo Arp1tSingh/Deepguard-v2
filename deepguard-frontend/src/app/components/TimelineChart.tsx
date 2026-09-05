@@ -11,14 +11,12 @@ export function TimelineChart() {
   const { timeline } = useDeepGuard();
   const [hovered, setHovered] = useState<number | null>(null);
 
-  if (!timeline) return null;
-
   const W = 600;
   const H = 160;
   const PAD = 16;
 
   const pts = useMemo(() => {
-    if (timeline.points.length === 0) return [];
+    if (!timeline || timeline.points.length === 0) return [];
     return timeline.points.map((d, i) => ({
       x: PAD + (i / Math.max(1, timeline.points.length - 1)) * (W - PAD * 2),
       ...d,
@@ -27,7 +25,7 @@ export function TimelineChart() {
 
   const linePaths = useMemo(() => {
     const result: Record<string, string> = {};
-    if (timeline.points.length === 0) return result;
+    if (!timeline || timeline.points.length === 0) return result;
     for (const key of MODEL_KEYS) {
       const p = timeline.points.map((d, i) => ({
         x: PAD + (i / Math.max(1, timeline.points.length - 1)) * (W - PAD * 2),
@@ -37,6 +35,8 @@ export function TimelineChart() {
     }
     return result;
   }, [timeline]);
+
+  if (!timeline) return null;
 
   const xPts = pts.map((p) => ({ ...p, y: H - PAD - (p.xception / 100) * (H - PAD * 2) }));
   const peaks = xPts.filter((p, i) => i > 0 && i < xPts.length - 1 && p.xception > xPts[i - 1].xception && p.xception > xPts[i + 1].xception && p.xception > 20);
