@@ -29,6 +29,17 @@ DFB_ROOT = os.path.join(REPO_ROOT, "DeepfakeBench")
 sys.path.insert(0, os.path.join(DFB_ROOT, "training"))
 sys.path.insert(0, BACKEND_DIR)
 
+# Compatibility shims (see deepguard-backend/stubs/README.md): dlib and imgaug
+# are only used by DeepfakeBench's training-time code, but their imports run
+# at module load. The real packages are unavailable/broken on modern
+# Python+numpy combos, so fall back to the committed stubs when needed. Real
+# installs, if present and working, take precedence automatically.
+try:
+    import dlib  # noqa: F401
+    import imgaug  # noqa: F401
+except Exception:
+    sys.path.insert(0, os.path.join(BACKEND_DIR, "stubs"))
+
 # Fallback mechanism if full DeepfakeBench dependencies or weights are not present
 MOCK_MODELS = False
 try:

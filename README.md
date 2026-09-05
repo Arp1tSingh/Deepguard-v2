@@ -66,13 +66,9 @@ cd deepguard-backend
 python3 -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 
-# Install dependencies
+# Install dependencies (frozen set — includes everything the DeepfakeBench
+# models need; dlib/imgaug are intentionally excluded, see stubs/README.md)
 pip install -r requirements.txt
-
-# Extra runtime deps for the DeepfakeBench models
-pip install simplejson einops albumentations scikit-image timm tqdm \
-  tensorboardX yacs imageio fvcore scikit-learn tensorboard \
-  efficientnet_pytorch kornia loralib transformers matplotlib lmdb
 ```
 
 ### 2a. Model checkpoints (required for real inference)
