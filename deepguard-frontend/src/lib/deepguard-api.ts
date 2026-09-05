@@ -72,11 +72,22 @@ export const api = {
     return request(`/api/videos/${videoId}/timeline`);
   },
 
-  exportPDF(videoId: string): Promise<Blob> {
-    return fetch(`${BASE}/api/videos/${videoId}/export`).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.blob();
-    });
+  async exportPDF(videoId: string): Promise<Blob> {
+    let r: Response;
+    try {
+      r = await fetch(`${BASE}/api/videos/${videoId}/export`);
+    } catch {
+      throw new Error(
+        `Cannot reach backend at ${BASE || "(no API URL configured)"} — is it running?`
+      );
+    }
+    if (!r.ok) {
+      const body = await r.json().catch(() => null);
+      const detail =
+        body && typeof body.detail === "string" ? body.detail : null;
+      throw new Error(detail || `Export failed (HTTP ${r.status})`);
+    }
+    return r.blob();
   },
 
   getOriginalVideoUrl(videoId: string): string {

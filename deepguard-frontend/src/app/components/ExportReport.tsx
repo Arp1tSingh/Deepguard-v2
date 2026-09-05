@@ -9,11 +9,13 @@ export function ExportReport() {
   const { verdict, videoId, uploadStatus } = useDeepGuard();
   const [exporting, setExporting] = useState(false);
   const [done, setDone] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const handleExport = useCallback(async () => {
     if (!videoId) return;
     setExporting(true);
     setDone(false);
+    setExportError(null);
     try {
       const blob = await api.exportPDF(videoId);
       const url = URL.createObjectURL(blob);
@@ -27,7 +29,7 @@ export function ExportReport() {
       setDone(true);
       setTimeout(() => setDone(false), 3000);
     } catch (err) {
-      console.error("Export failed:", err);
+      setExportError(err instanceof Error ? err.message : "Export failed");
     } finally {
       setExporting(false);
     }
@@ -47,13 +49,18 @@ export function ExportReport() {
             <p className="text-xs text-zinc-500 mt-0.5">PDF with verdict, signals, and timeline data</p>
           </div>
         </div>
-        <button
-          onClick={handleExport} disabled={exporting || !videoId || uploadStatus !== "done"}
-          className="btn-primary flex items-center gap-2 w-full sm:w-auto"
-        >
-          {exporting ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : done ? <><Check className="w-4 h-4" />Exported</> : <><Download className="w-4 h-4" />Export PDF</>}
-        </button>
-      </div>
+          <button
+            onClick={handleExport} disabled={exporting || !videoId || uploadStatus !== "done"}
+            className="btn-primary flex items-center gap-2 w-full sm:w-auto"
+          >
+            {exporting ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : done ? <><Check className="w-4 h-4" />Exported</> : <><Download className="w-4 h-4" />Export PDF</>}
+          </button>
+        </div>
+        {exportError && (
+          <p className="mt-4 text-sm text-[var(--fake)]" role="alert">
+            {exportError}
+          </p>
+        )}
 
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-6">
         {[
