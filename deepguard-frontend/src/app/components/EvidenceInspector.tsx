@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Eye, Layers, Maximize2 } from "lucide-react";
+import { Eye, Layers } from "lucide-react";
 import { useDeepGuard } from "./DeepGuardProvider";
 import { api } from "@/lib/deepguard-api";
 import { StatusPill } from "./StatusPill";
@@ -41,7 +41,7 @@ export function EvidenceInspector() {
   }
 
   return (
-    <div className="glass-card p-6 w-full max-w-full lg:w-[110%] lg:-ml-[5%] xl:w-[120%] xl:-ml-[10%]">
+    <div className="glass-card p-6 w-full">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Video Player */}
         <div className="flex flex-col h-full">
@@ -81,30 +81,30 @@ export function EvidenceInspector() {
             className="flex-1 relative rounded-xl overflow-hidden cursor-ew-resize select-none border border-white/5"
             style={{ minHeight: "240px", background: "#0a0a0f" }}
             onMouseDown={(e) => { setDragging(true); updateWipe(e.clientX); }}>
-            {/* Original layer */}
+            {/* Heatmap base layer (right side revealed) */}
             <div className="absolute inset-0 bg-[rgba(255,255,255,0.02)] flex items-center justify-center">
-               {frames[selectedFrame]?.original_frame_url ? (
-                  <img src={api.getFrameOriginalUrl(videoId!, selectedFrame)} alt="Original" className="w-full h-full object-cover pointer-events-none" />
+               {frames[selectedFrame]?.heatmap_url ? (
+                  <img src={api.getFrameHeatmapUrl(videoId!, selectedFrame)} alt="Heatmap" className="w-full h-full object-cover pointer-events-none" />
                ) : (
                   <div className="text-center">
                     <Eye className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
-                    <p className="text-sm text-zinc-500">Original Frame</p>
+                    <p className="text-sm text-zinc-500">Grad-CAM Heatmap</p>
                   </div>
                )}
             </div>
-            {/* Heatmap layer */}
+            {/* Original layer clipped to left of wipe */}
             <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - wipe}% 0 0)` }}>
               <div className="absolute inset-0 flex items-center justify-center">
-                {frames[selectedFrame]?.heatmap_url ? (
-                  <img src={api.getFrameHeatmapUrl(videoId!, selectedFrame)} alt="Heatmap" className="w-full h-full object-cover pointer-events-none" />
+                {frames[selectedFrame]?.original_frame_url ? (
+                  <img src={api.getFrameOriginalUrl(videoId!, selectedFrame)} alt="Original" className="w-full h-full object-cover pointer-events-none" />
                 ) : (
-                  <p className="text-sm text-zinc-500">Grad-CAM Heatmap</p>
+                  <p className="text-sm text-zinc-500">Original Frame</p>
                 )}
               </div>
             </div>
             {/* Divider line */}
             <div className="absolute top-0 bottom-0 wipe-handle" style={{ left: `${wipe}%` }} />
-            
+
             <div className="absolute bottom-3 left-4 bg-black/80 px-2.5 py-1 rounded text-xs font-medium text-zinc-200 backdrop-blur-md">Original</div>
             <div className="absolute bottom-3 right-4 bg-black/80 px-2.5 py-1 rounded text-xs font-medium text-[var(--accent)] backdrop-blur-md">Grad-CAM</div>
           </div>

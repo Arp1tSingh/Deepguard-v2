@@ -4,7 +4,6 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, FileVideo, X, Sparkles, Loader2 } from "lucide-react";
 import { useDeepGuard } from "./DeepGuardProvider";
-import { api } from "@/lib/deepguard-api";
 
 const MAX_SIZE = 500 * 1024 * 1024;
 const ALLOWED = ["video/mp4", "video/webm", "video/quicktime"];
