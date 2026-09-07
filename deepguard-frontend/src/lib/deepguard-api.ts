@@ -49,9 +49,10 @@ export const api = {
     frames: Array<{
       timestamp: string;
       time_sec: number;
-      face_confidence: number;
-      original_frame_url: string;
-      heatmap_url: string;
+      face_detected: boolean;
+      face_confidence: number | null;
+      original_frame_url: string | null;
+      heatmap_url: string | null;
     }>;
   }> {
     return request(`/api/videos/${videoId}/evidence`);
@@ -98,7 +99,8 @@ export const api = {
     return `${BASE}/api/videos/${videoId}/frames/${index}/original`;
   },
 
-  getFrameHeatmapUrl(videoId: string, index: number): string {
-    return `${BASE}/api/videos/${videoId}/frames/${index}/heatmap`;
+  getFrameHeatmapUrl(videoId: string, index: number, model?: string): string {
+    const base = `${BASE}/api/videos/${videoId}/frames/${index}/heatmap`;
+    return model && model !== "xception" ? `${base}?model=${model}` : base;
   },
 };

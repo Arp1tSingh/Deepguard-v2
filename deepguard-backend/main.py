@@ -149,16 +149,28 @@ async def get_verdict(video_id: str):
 @app.get("/api/videos/{video_id}/evidence")
 async def get_evidence(video_id: str):
     result = _get_done_result(video_id)
-    frames = [
-        {
-            "timestamp": fr["timestamp"],
-            "time_sec": fr["time_sec"],
-            "face_confidence": fr["fake_probability"],  # see backend/README.md: this is P(fake), not face-detection confidence
-            "original_frame_url": f"/api/videos/{video_id}/frames/{fr['index']}/original",
-            "heatmap_url": f"/api/videos/{video_id}/frames/{fr['index']}/heatmap",
-        }
-        for fr in result["frames"]
-    ]
+    frames = []
+    for fr in result["frames"]:
+        if fr.get("face_detected", True):
+            frames.append({
+                "timestamp": fr["timestamp"],
+                "time_sec": fr["time_sec"],
+                "face_detected": True,
+                "face_confidence": fr["fake_probability"],  # see backend/README.md: this is P(fake), not face-detection confidence
+                "original_frame_url": f"/api/videos/{video_id}/frames/{fr['index']}/original",
+                "heatmap_url": f"/api/videos/{video_id}/frames/{fr['index']}/heatmap",
+            })
+        else:
+            # Skipped (no-face) frame: visibly marked, no media URLs.
+            # The frontend shows a "No face detected" state instead.
+            frames.append({
+                "timestamp": fr["timestamp"],
+                "time_sec": fr["time_sec"],
+                "face_detected": False,
+                "face_confidence": None,
+                "original_frame_url": None,
+                "heatmap_url": None,
+            })
     return {
         "original_video_url": f"/api/videos/{video_id}/original",
         "frames": frames,
@@ -191,8 +203,27 @@ async def get_original(video_id: str):
     return FileResponse(job["video_path"])
 
 
+def _frame_record(video_id, index):
+    """Return the stored frame record for index, or None if unavailable
+    (job not done yet, unknown id, or legacy result without frame list)."""
+    try:
+        job = _get_job(video_id)
+    except HTTPException:
+        return None
+    result = job.get("result")
+    if not result:
+        return None
+    frames = result.get("frames", [])
+    if 0 <= index < len(frames):
+        return frames[index]
+    return None
+
+
 @app.get("/api/videos/{video_id}/frames/{index}/original")
 async def get_frame_original(video_id: str, index: int):
+    rec = _frame_record(video_id, index)
+    if rec is not None and not rec.get("face_detected", True):
+        raise HTTPException(status_code=404, detail="no_face_detected")
     path = os.path.join(_video_dir(video_id), "frames", f"frame_{index}_original.jpg")
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Frame not found")
@@ -200,8 +231,17 @@ async def get_frame_original(video_id: str, index: int):
 
 
 @app.get("/api/videos/{video_id}/frames/{index}/heatmap")
-async def get_frame_heatmap(video_id: str, index: int):
-    path = os.path.join(_video_dir(video_id), "frames", f"frame_{index}_heatmap.jpg")
+async def get_frame_heatmap(video_id: str, index: int, model: str = "xception"):
+    if model not in ("xception", "spsl", "ucf"):
+        raise HTTPException(status_code=400, detail="Unknown model; use ?model=ucf|spsl|xception")
+    rec = _frame_record(video_id, index)
+    if rec is not None and not rec.get("face_detected", True):
+        raise HTTPException(status_code=404, detail="no_face_detected")
+    if model == "xception":
+        # Legacy flat path (default) — kept for backward compatibility.
+        path = os.path.join(_video_dir(video_id), "frames", f"frame_{index}_heatmap.jpg")
+    else:
+        path = os.path.join(_video_dir(video_id), "heatmaps", model, f"frame_{index}_heatmap.jpg")
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Frame not found")
     return FileResponse(path, media_type="image/jpeg")

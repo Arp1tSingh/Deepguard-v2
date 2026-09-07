@@ -44,7 +44,7 @@ except Exception:
 MOCK_MODELS = False
 try:
     from detectors import DETECTOR  # noqa: E402
-    from gradcam import compute_gradcam, overlay_heatmap  # noqa: E402
+    from gradcam import compute_gradcam, compute_gradcam_for, overlay_heatmap  # noqa: E402
 except ImportError as e:
     print(f"Warning: DeepfakeBench imports failed ({e}). Falling back to mock models.", file=sys.stderr)
     MOCK_MODELS = False
@@ -68,34 +68,106 @@ MODEL_SPECS = [
 FRAMES_PER_VIDEO = 5  # matches the frontend mock's 5 sampled-frame layout
 FACE_RES = 256
 
+# --- Face detection (OpenCV DNN SSD, CPU-friendly) ---
+FACE_MODELS_DIR = os.path.join(BACKEND_DIR, "face_models")
+SSD_PROTOTXT = os.path.join(FACE_MODELS_DIR, "deploy.prototxt")
+SSD_CAFFEMODEL = os.path.join(
+    FACE_MODELS_DIR, "res10_300x300_ssd_iter_140000.caffemodel"
+)
+
+# Detection gates. Calibrated Sep 2026 against real project footage: a true
+# face frame scored SSD 0.328 (a 0.5 threshold would MISS it), while a
+# background region scored 0.98 — confidence alone cannot separate them.
+# So the threshold stays low (0.3) and the size/aspect gates below do most
+# of the false-positive rejection instead.
+SSD_CONF_THRESHOLD = 0.3
+MIN_FACE_PX = 60
+MAX_FACE_FRAC = 0.9  # box w/h must each be < 90% of frame w/h
+ASPECT_MIN, ASPECT_MAX = 0.5, 2.0  # box w/h ratio bounds
+FACE_PAD_RATIO = 0.25
+
 _MODEL_CACHE = {}
 
 
 def get_face_detector():
-    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    return cv2.CascadeClassifier(cascade_path)
+    """Load the OpenCV DNN SSD face detector. Fail fast with a clear message
+    if weights are missing — run: python3 scripts/download_face_models.py"""
+    missing = [p for p in (SSD_PROTOTXT, SSD_CAFFEMODEL) if not os.path.exists(p)]
+    if missing:
+        raise RuntimeError(
+            "Face-detector weights missing: " + ", ".join(missing)
+            + ". Run: python3 scripts/download_face_models.py"
+        )
+    # Loaded fresh per analysis run: cheap (~10MB) and thread-safe, unlike a
+    # shared module-global net used from background analysis threads.
+    return cv2.dnn.readNetFromCaffe(SSD_PROTOTXT, SSD_CAFFEMODEL)
+
+
+def pad_and_clamp_box(x, y, w, h, frame_w, frame_h, pad_ratio=FACE_PAD_RATIO):
+    """Expand (x, y, w, h) by pad_ratio and clamp to the frame.
+    Returns (x0, y0, x1, y1), or None if the result is degenerate/empty
+    (can happen for boxes flush against a frame edge)."""
+    pad = int(pad_ratio * max(w, h))
+    x0, y0 = max(0, x - pad), max(0, y - pad)
+    x1, y1 = min(frame_w, x + w + pad), min(frame_h, y + h + pad)
+    if x1 <= x0 or y1 <= y0:
+        return None
+    return (x0, y0, x1, y1)
+
+
+def passes_face_gates(w, h, conf, frame_w, frame_h):
+    """Sanity gates for a candidate detection box. See threshold note above."""
+    if conf < SSD_CONF_THRESHOLD:
+        return False
+    if w < MIN_FACE_PX or h < MIN_FACE_PX:
+        return False
+    if w > MAX_FACE_FRAC * frame_w or h > MAX_FACE_FRAC * frame_h:
+        return False
+    aspect = w / max(h, 1)
+    if not (ASPECT_MIN <= aspect <= ASPECT_MAX):
+        return False
+    return True
+
+
+def detect_faces_dnn(frame_bgr, net):
+    """Returns [(conf, x0, y0, x1, y1), ...] for boxes passing all gates."""
+    h, w = frame_bgr.shape[:2]
+    blob = cv2.dnn.blobFromImage(
+        cv2.resize(frame_bgr, (300, 300)), 1.0, (300, 300),
+        (104.0, 177.0, 123.0),
+    )
+    net.setInput(blob)
+    dets = net.forward()
+    out = []
+    for i in range(dets.shape[2]):
+        conf = float(dets[0, 0, i, 2])
+        x0, y0, x1, y1 = (dets[0, 0, i, 3:7] * np.array([w, h, w, h])).astype(int)
+        bw, bh = int(x1 - x0), int(y1 - y0)
+        if bw <= 0 or bh <= 0:
+            continue
+        if passes_face_gates(bw, bh, conf, w, h):
+            out.append((conf, int(x0), int(y0), int(x1), int(y1)))
+    return out
 
 
 def crop_face_bbox(frame_bgr, detector, res=FACE_RES):
-    """Returns (crop, bbox) where bbox is (x0,y0,x1,y1) in original frame coords, or None bbox if none found."""
-    gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-    faces = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
-    if len(faces) == 0:
-        h, w = frame_bgr.shape[:2]
-        s = min(h, w)
-        y0, x0 = (h - s) // 2, (w - s) // 2
-        bbox = None
-        crop = frame_bgr[y0:y0 + s, x0:x0 + s]
-    else:
-        x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-        pad = int(0.25 * max(w, h))
-        x0, y0 = max(0, x - pad), max(0, y - pad)
-        x1 = min(frame_bgr.shape[1], x + w + pad)
-        y1 = min(frame_bgr.shape[0], y + h + pad)
-        bbox = (x0, y0, x1, y1)
-        crop = frame_bgr[y0:y1, x0:x1]
-    crop = cv2.resize(crop, (res, res))
-    return crop, bbox
+    """Returns (crop, bbox) with bbox in (x0, y0, x1, y1) frame coords.
+
+    Returns (None, None) when no detection passes the gates. There is
+    deliberately NO blind center-crop fallback: callers must skip such
+    frames rather than feed background into the detectors.
+    """
+    dets = detect_faces_dnn(frame_bgr, detector)
+    if not dets:
+        return None, None
+    conf, x0, y0, x1, y1 = max(dets, key=lambda d: d[0])  # highest confidence
+    frame_h, frame_w = frame_bgr.shape[:2]
+    box = pad_and_clamp_box(x0, y0, x1 - x0, y1 - y0, frame_w, frame_h)
+    if box is None:
+        return None, None
+    x0, y0, x1, y1 = box
+    crop = cv2.resize(frame_bgr[y0:y1, x0:x1], (res, res))
+    return crop, (x0, y0, x1, y1)
 
 
 def sample_frames_with_timestamps(video_path):
@@ -200,44 +272,85 @@ def analyze_video(video_path, frames_dir, progress_cb=None):
 
     # Crop faces once, reuse across all 3 models (each model has its own mean/std,
     # so we normalize per-model but the crop itself is model-independent).
+    # Frames with no passing detection yield (None, None) and are SKIPPED
+    # downstream: no model inference, no heatmap, no timeline point. They
+    # keep their positional index in frame_records, visibly marked with
+    # face_detected=False, so skipped frames never masquerade as detections.
     crops_bboxes = [crop_face_bbox(f["frame"], detector) for f in frames]
+    valid_idx = [i for i, (crop, _bbox) in enumerate(crops_bboxes) if crop is not None]
+    if not valid_idx:
+        raise RuntimeError("No faces detected in any sampled frame of the uploaded video.")
+
+    heatmaps_dir = os.path.join(os.path.dirname(frames_dir), "heatmaps")
+    for key, *_ in MODEL_SPECS:
+        os.makedirs(os.path.join(heatmaps_dir, key), exist_ok=True)
 
     model_video_scores = {}
-    model_frame_scores = {key: [] for key, *_ in MODEL_SPECS}
+    model_frame_scores = {}  # key -> {orig_frame_idx: prob}
+    xception_probs = {}
 
+    # One model at a time: load -> score -> Grad-CAM -> write -> free.
+    # Keeps peak RAM to a single model on 8GB CPU-only machines.
     for key, display_name, cfg_rel, weights_rel, note in MODEL_SPECS:
         report(f"Running {display_name}")
         model, config = load_model(key, cfg_rel, weights_rel, use_cache=False)
-        tensors = [to_model_tensor(crop, config["mean"], config["std"]) for crop, _ in crops_bboxes]
+        tensors = [
+            to_model_tensor(crops_bboxes[i][0], config["mean"], config["std"])
+            for i in valid_idx
+        ]
         frame_probs = score_batch(model, config, tensors)
-        model_frame_scores[key] = frame_probs
+        model_frame_scores[key] = dict(zip(valid_idx, frame_probs))
         model_video_scores[key] = float(np.mean(frame_probs))
-        
+
+        report(f"Computing Grad-CAM ({display_name})")
+        for orig_i in valid_idx:
+            crop = crops_bboxes[orig_i][0]
+            tensor = to_model_tensor(
+                crop, config["mean"], config["std"]
+            ).unsqueeze(0)
+            cam, prob_fake = compute_gradcam_for(key, model, tensor)
+            overlay = overlay_heatmap(crop, cam)
+            cv2.imwrite(
+                os.path.join(heatmaps_dir, key, f"frame_{orig_i}_heatmap.jpg"),
+                overlay,
+            )
+            if key == "xception":
+                # Legacy flat path kept so existing /frames/{n}/heatmap
+                # clients (default ?model=xception) keep working.
+                cv2.imwrite(
+                    os.path.join(frames_dir, f"frame_{orig_i}_heatmap.jpg"),
+                    overlay,
+                )
+                xception_probs[orig_i] = prob_fake
+
         # Free memory immediately
         del model
         import gc
         gc.collect()
 
-    # Grad-CAM + per-frame face crops, driven by Xception (see module docstring)
-    report("Computing Grad-CAM")
-    xception_model, xception_config = load_model("xception", MODEL_SPECS[2][2], MODEL_SPECS[2][3], use_cache=False)
+    # Original crops, valid frames only (positional indices preserved).
     frame_records = []
-    for i, (frame_info, (crop, bbox)) in enumerate(zip(frames, crops_bboxes)):
-        tensor = to_model_tensor(crop, xception_config["mean"], xception_config["std"]).unsqueeze(0)
-        cam, prob_fake = compute_gradcam(xception_model, tensor)
-        overlay = overlay_heatmap(crop, cam)
-
+    for i, frame_info in enumerate(frames):
+        if i not in valid_idx:
+            frame_records.append({
+                "index": i,
+                "time_sec": frame_info["time_sec"],
+                "timestamp": format_timestamp(frame_info["time_sec"]),
+                "face_detected": False,
+                "fake_probability": None,
+                "original_frame_file": None,
+                "heatmap_file": None,
+            })
+            continue
+        crop = crops_bboxes[i][0]
         orig_path = os.path.join(frames_dir, f"frame_{i}_original.jpg")
-        heat_path = os.path.join(frames_dir, f"frame_{i}_heatmap.jpg")
         cv2.imwrite(orig_path, crop)
-        cv2.imwrite(heat_path, overlay)
-
         frame_records.append({
             "index": i,
             "time_sec": frame_info["time_sec"],
             "timestamp": format_timestamp(frame_info["time_sec"]),
-            "face_detected": bbox is not None,
-            "fake_probability": round(prob_fake * 100, 1),  # this drives the "face XX%" badge
+            "face_detected": True,
+            "fake_probability": round(xception_probs[i] * 100, 1),  # this drives the "face XX%" badge
             "original_frame_file": f"frame_{i}_original.jpg",
             "heatmap_file": f"frame_{i}_heatmap.jpg",
         })
@@ -280,16 +393,19 @@ def analyze_video(video_path, frames_dir, progress_cb=None):
             "agreement": agreement,
             "agreement_spread": round(spread * 100, 1),
         },
+        # Skipped (no-face) frames are dropped here: the frontend's
+        # TimelineChart maps over points[] and handles variable lengths.
         "timeline": [
             {
                 "time_sec": fr["time_sec"],
                 "timestamp": fr["timestamp"],
-                # Per-frame series from all 3 models, plus the Xception-Grad-CAM-aligned value
-                "xception": round(model_frame_scores["xception"][i] * 100, 1),
-                "spsl": round(model_frame_scores["spsl"][i] * 100, 1),
-                "ucf": round(model_frame_scores["ucf"][i] * 100, 1),
+                # Per-frame series from all 3 models
+                "xception": round(model_frame_scores["xception"][fr["index"]] * 100, 1),
+                "spsl": round(model_frame_scores["spsl"][fr["index"]] * 100, 1),
+                "ucf": round(model_frame_scores["ucf"][fr["index"]] * 100, 1),
             }
-            for i, fr in enumerate(frame_records)
+            for fr in frame_records
+            if fr["face_detected"]
         ],
         "frames": frame_records,
     }

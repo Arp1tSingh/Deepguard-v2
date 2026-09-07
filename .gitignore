@@ -21,6 +21,7 @@ npm-debug.log
 
 # Project specific
 deepguard-backend/storage/
+deepguard-backend/face_models/
 DeepfakeBench/training/weights/*.pth
 
 # OS

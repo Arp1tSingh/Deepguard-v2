@@ -233,9 +233,17 @@ Notes:
 
 - **CPU-only inference** — slow on low-end hardware by design; GPU support is
   a future improvement.
-- **Face detection** uses OpenCV Haar cascades (not dlib alignment) — best on
-  clear frontal faces.
-- **Grad-CAM is Xception-only**; SPSL/UCF contribute scores, not heatmaps.
+- **Face detection** uses OpenCV's DNN SSD detector (`res10`, CPU-friendly),
+  gated by confidence (≥ 0.3) plus min/max-size and aspect-ratio checks — far
+  more robust than the old Haar cascades to angle, lighting, and partial
+  occlusion, without needing dlib. Frames with no passing detection are
+  skipped (no model inference, no heatmap, no timeline point) and surface in
+  the UI as "No face detected" instead of silently analyzing background.
+- **Grad-CAM is per-model** (UCF / SPSL / Xception), selectable in the
+  Evidence Inspector. SPSL's heatmap visualizes its RGB branch only, not the
+  frequency phase-spectrum branch — partial explainability, not the full
+  story. UCF's heatmap hooks the forgery encoder via the shared-forgery
+  head and is likewise approximate.
 - **Single-process job registry** persisted to `storage/` — fine for local
   use, not production traffic (no queue, retry, or cleanup).
 - **CORS is wide-open** (`allow_origins=["*"]`) and there is **no auth** —

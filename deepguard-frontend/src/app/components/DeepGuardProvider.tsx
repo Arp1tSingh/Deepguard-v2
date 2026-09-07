@@ -21,9 +21,10 @@ interface VerdictData {
 interface EvidenceFrame {
   timestamp: string;
   time_sec: number;
-  face_confidence: number;
-  original_frame_url: string;
-  heatmap_url: string;
+  face_detected: boolean;
+  face_confidence: number | null;
+  original_frame_url: string | null;
+  heatmap_url: string | null;
 }
 
 interface EvidenceData {
