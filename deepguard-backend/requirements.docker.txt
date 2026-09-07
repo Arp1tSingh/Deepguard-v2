@@ -1,0 +1,63 @@
+# DeepGuard backend — Docker/production variant with CPU-only torch.
+# Same frozen set as requirements.txt, except torch/torchvision resolve to
+# their +cpu wheels (no multi-GB NVIDIA bundles). Used by the root Dockerfile
+# for Hugging Face Spaces. For local dev, use requirements.txt instead.
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# --- Web framework ---
+fastapi==0.141.1
+uvicorn==0.52.4
+python-multipart==0.0.32
+reportlab==5.0.1
+
+# --- Vision / numerics ---
+# opencv must stay on the 4.x branch: 5.x removed CascadeClassifier,
+# which analysis.py uses for face detection.
+opencv-python-headless==4.14.0.94
+numpy==2.5.2
+pyyaml==6.0.3
+pillow==12.3.0
+scipy==1.18.1
+scikit-image==0.26.0
+scikit-learn==1.9.0
+imageio==2.37.4
+tifffile==2026.8.23
+matplotlib==3.11.1
+
+# --- Torch ecosystem (CPU-only wheels) ---
+torch==2.14.0+cpu
+torchvision==0.29.0+cpu
+timm==1.0.29
+einops==0.8.2
+kornia==0.8.3
+kornia-rs==0.1.14
+efficientnet-pytorch==0.7.1
+loralib==0.1.2
+safetensors==0.8.0
+huggingface-hub==1.30.0
+
+# --- DeepfakeBench support libs ---
+albumentations==2.0.8
+albucore==0.0.24
+simsimd==6.5.16
+stringzilla==5.1.2
+fvcore==0.1.5.post20221221
+iopath==0.1.10
+yacs==0.1.8
+tqdm==4.70.0
+tensorboard==2.21.0
+tensorboard-data-server==0.7.2
+tensorboardx==2.6.5
+transformers==5.16.1
+tokenizers==0.23.2
+regex==2026.9.3
+lmdb==2.3.0
+protobuf==7.36.1
+packaging==26.3
+lazy-loader==0.5
+
+# --- Deliberately EXCLUDED (see deepguard-backend/stubs/README.md) ---
+# dlib: no prebuilt wheel for Python 3.14; training-time only, stubbed.
+# imgaug: incompatible with numpy 2, pulls opencv 5.x; training-time only, stubbed.
+# shapely: only required by imgaug; not needed without it.

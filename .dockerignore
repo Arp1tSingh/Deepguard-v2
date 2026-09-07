@@ -1,0 +1,9 @@
+.git/
+.gitignore
+.env*
+deepguard-backend/venv/
+deepguard-backend/storage/
+deepguard-frontend/node_modules/
+deepguard-frontend/.next/
+__pycache__/
+*.pyc

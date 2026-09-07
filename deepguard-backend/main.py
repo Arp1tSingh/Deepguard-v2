@@ -37,14 +37,36 @@ os.makedirs(STORAGE_DIR, exist_ok=True)
 
 app = FastAPI(title="Deepguard Backend")
 
-# Wide-open CORS for local dev with a separately-hosted frontend.
-# Tighten this to your actual frontend origin before any real deployment.
+# CORS origins come from ALLOW_ORIGINS (comma-separated). Default "*" keeps
+# local dev working; production sets it to the real frontend origin, e.g.
+# ALLOW_ORIGINS=https://deepguard.vercel.app
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get("ALLOW_ORIGINS", "*").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def _verify_weights():
+    # Fail fast in production (REQUIRE_WEIGHTS=1) instead of serving
+    # confident-looking verdicts from randomly-initialized networks.
+    if os.environ.get("REQUIRE_WEIGHTS", "") == "1":
+        from analysis import MODEL_SPECS, DFB_ROOT
+
+        missing = [
+            weights_rel
+            for _key, _name, _cfg, weights_rel, _note in MODEL_SPECS
+            if not os.path.exists(os.path.join(DFB_ROOT, weights_rel))
+        ]
+        if missing:
+            raise RuntimeError(f"Missing model checkpoints: {missing}")
 
 # In-memory job registry. Fine for a single-process prototype; swap for a
 # real DB/queue (e.g. Redis + RQ/Celery) before this needs to survive
