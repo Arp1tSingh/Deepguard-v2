@@ -26,6 +26,18 @@ BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(BACKEND_DIR)  # /home/claude/deepguard
 DFB_ROOT = os.path.join(REPO_ROOT, "DeepfakeBench")
 
+# Checkpoint location. Defaults to the vendored tree for local dev; production
+# (Docker/VPS) sets WEIGHTS_DIR to a bind-mounted host directory, e.g.
+# WEIGHTS_DIR=/weights. Only the file *names* from MODEL_SPECS are used.
+WEIGHTS_DIR = os.environ.get("WEIGHTS_DIR") or os.path.join(
+    DFB_ROOT, "training", "weights"
+)
+
+
+def weights_path(weights_rel):
+    """Resolve a MODEL_SPECS weights path against WEIGHTS_DIR."""
+    return os.path.join(WEIGHTS_DIR, os.path.basename(weights_rel))
+
 sys.path.insert(0, os.path.join(DFB_ROOT, "training"))
 sys.path.insert(0, BACKEND_DIR)
 
@@ -223,7 +235,7 @@ def load_model(key, cfg_rel, weights_rel, use_cache=False):
     model_class = DETECTOR[config["model_name"]]
     model = model_class(config)
     
-    weight_path = os.path.join(DFB_ROOT, weights_rel)
+    weight_path = weights_path(weights_rel)
     if not os.path.exists(weight_path):
         print(f"Warning: Checkpoint {weight_path} missing. Proceeding with uninitialized weights.", file=sys.stderr)
     else:

@@ -58,12 +58,12 @@ async def _verify_weights():
     # Fail fast in production (REQUIRE_WEIGHTS=1) instead of serving
     # confident-looking verdicts from randomly-initialized networks.
     if os.environ.get("REQUIRE_WEIGHTS", "") == "1":
-        from analysis import MODEL_SPECS, DFB_ROOT
+        from analysis import MODEL_SPECS, weights_path
 
         missing = [
-            weights_rel
+            weights_path(weights_rel)
             for _key, _name, _cfg, weights_rel, _note in MODEL_SPECS
-            if not os.path.exists(os.path.join(DFB_ROOT, weights_rel))
+            if not os.path.exists(weights_path(weights_rel))
         ]
         if missing:
             raise RuntimeError(f"Missing model checkpoints: {missing}")

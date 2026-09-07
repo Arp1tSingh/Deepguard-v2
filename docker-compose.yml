@@ -1,0 +1,15 @@
+# DeepGuard backend — VPS deployment.
+# 1. Copy .env.example to .env and fill in real values.
+# 2. Place ucf_best.pth / spsl_best.pth / xception_best.pth in ./weights/.
+# 3. docker compose up -d --build
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Host directory with the 3 .pth checkpoints, read-only in-container.
+      - ./weights:/weights:ro
+    env_file:
+      - .env
+    restart: unless-stopped

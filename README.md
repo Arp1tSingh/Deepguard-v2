@@ -133,6 +133,18 @@ npm run lint    # eslint
 
 ---
 
+## Deploying (production)
+
+- **Backend** → Oracle Cloud Always Free VPS via Docker Compose. Full
+  step-by-step guide: [`DEPLOY_ORACLE.md`](DEPLOY_ORACLE.md) (VM setup,
+  firewall + Security List ports, weights via `scp`, HTTPS with DuckDNS +
+  nginx + certbot, reboot survival, CORS tightening).
+- **Frontend** → Vercel. Import the repo (root `deepguard-frontend`),
+  set `NEXT_PUBLIC_DEEPGUARD_API_URL` to the HTTPS backend URL **before**
+  building — a localhost-baked build fails silently in the browser.
+
+---
+
 ## 4. Usage
 
 1. **Upload** a video via drag & drop (or click to browse).
