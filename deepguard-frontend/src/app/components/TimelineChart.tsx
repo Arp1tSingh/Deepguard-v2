@@ -126,10 +126,21 @@ export function TimelineChart() {
           )}
         </svg>
         <div className="flex justify-between text-xs text-zinc-500 px-4 mt-3 font-mono">
-          {Array.from({ length: Math.min(7, timeline.points.length) }, (_, i) => {
-            const idx = Math.floor((i / 6) * (timeline.points.length - 1));
-            return <span key={i}>{timeline.points[idx]?.timestamp ?? ""}</span>;
-          })}
+          {(() => {
+            const duration = timeline.duration_sec ?? 0;
+            // Tick across wall-clock time so labels always span 00:00 to the
+            // true end, regardless of how many (or how few) points exist.
+            if (duration <= 0 || timeline.points.length <= 1) {
+              return <span>{timeline.points[0]?.timestamp ?? "00:00"}</span>;
+            }
+            return Array.from({ length: 7 }, (_, i) => {
+              const t = (i / 6) * duration;
+              const m = Math.floor(t / 60);
+              const s = Math.floor(t % 60);
+              const label = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+              return <span key={i}>{label}</span>;
+            });
+          })()}
         </div>
         <p className="text-center text-[10px] text-zinc-600 mt-1 uppercase tracking-wider">
           Video time (mm:ss)
