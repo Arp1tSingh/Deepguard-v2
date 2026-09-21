@@ -2,12 +2,25 @@
 
 import { ShieldCheck, Menu, X } from 'lucide-react';
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useDeepGuard } from "./DeepGuardProvider";
+
+const ANCHOR_ITEMS = [
+  { id: 'upload', label: 'Upload', always: true },
+  { id: 'verdict', label: 'Verdict', always: false },
+  { id: 'evidence', label: 'Evidence', always: false },
+  { id: 'signals', label: 'Signals', always: false },
+  { id: 'timeline', label: 'Timeline', always: false },
+  { id: 'export', label: 'Export', always: false },
+];
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { uploadStatus } = useDeepGuard();
+  const { uploadStatus, verdict } = useDeepGuard();
+  const pathname = usePathname();
+  const hasResults = !!verdict;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -17,14 +30,16 @@ export function Header() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const navItems = [
-    { id: 'upload', label: 'Upload' },
-    { id: 'verdict', label: 'Verdict' },
-    { id: 'evidence', label: 'Evidence' },
-    { id: 'signals', label: 'Signals' },
-    { id: 'timeline', label: 'Timeline' },
-    { id: 'export', label: 'Export' },
-  ];
+  const anchorClass = (always: boolean) =>
+    always || hasResults
+      ? "px-4 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white transition-colors duration-150"
+      : "px-4 py-2 rounded-lg text-sm font-medium text-zinc-700 cursor-not-allowed opacity-40";
+
+  const handleAnchorClick = (e: React.MouseEvent, always: boolean) => {
+    if (!always && !hasResults) e.preventDefault();
+  };
+
+  const modelsActive = pathname === "/models";
 
   return (
     <>
@@ -38,7 +53,7 @@ export function Header() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3">
               <div className="relative">
                 <div className="relative w-8 h-8 rounded-lg bg-[var(--accent)] flex items-center justify-center">
                   <ShieldCheck className="w-5 h-5 text-zinc-900" />
@@ -52,19 +67,29 @@ export function Header() {
                   Forensic AI
                 </p>
               </div>
-            </div>
+            </Link>
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-1">
-              {navItems.map((item) => (
+              {ANCHOR_ITEMS.map((item) => (
                 <a
                   key={item.id}
-                  href={`#${item.id}`}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white transition-colors duration-150"
+                  href={`/#${item.id}`}
+                  onClick={(e) => handleAnchorClick(e, item.always)}
+                  aria-disabled={!item.always && !hasResults}
+                  className={anchorClass(item.always)}
                 >
                   {item.label}
                 </a>
               ))}
+              <Link
+                href="/models"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${
+                  modelsActive ? "text-white" : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                Models
+              </Link>
             </nav>
 
             {/* Processing indicator */}
@@ -90,16 +115,33 @@ export function Header() {
           className={`lg:hidden overflow-hidden border-t border-white/5 transition-all duration-200 ${mobileMenuOpen ? 'block' : 'hidden'}`}
         >
           <div className="px-4 py-4 space-y-1 bg-black/90">
-            {navItems.map((item) => (
+            {ANCHOR_ITEMS.map((item) => (
               <a
                 key={item.id}
-                href={`#${item.id}`}
-                onClick={() => setMobileMenuOpen(false)}
-                className="block px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
+                href={`/#${item.id}`}
+                onClick={(e) => {
+                  handleAnchorClick(e, item.always);
+                  if (item.always || hasResults) setMobileMenuOpen(false);
+                }}
+                aria-disabled={!item.always && !hasResults}
+                className={`block px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                  item.always || hasResults
+                    ? "text-zinc-400 hover:text-white hover:bg-white/5"
+                    : "text-zinc-700 cursor-not-allowed opacity-40"
+                }`}
               >
                 {item.label}
               </a>
             ))}
+            <Link
+              href="/models"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`block px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                modelsActive ? "text-white" : "text-zinc-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              Models
+            </Link>
           </div>
         </div>
       </header>

@@ -8,19 +8,30 @@ import { MODEL_COLORS, MODEL_NAMES } from "@/lib/theme";
 const MODEL_KEYS = ["xception", "spsl", "ucf"] as const;
 
 export function TimelineChart() {
-  const { timeline } = useDeepGuard();
+  const { timeline, signals } = useDeepGuard();
   const [hovered, setHovered] = useState<number | null>(null);
 
   const W = 600;
   const H = 160;
   const PAD = 16;
 
+  // X position follows wall-clock time so dropped/skipped frames don't
+  // compress time. Falls back to even index spacing for photos (duration 0).
+  const xFor = (point: { time_sec: number }, i: number, n: number) => {
+    const duration = timeline?.duration_sec ?? 0;
+    if (duration > 0) {
+      return PAD + (point.time_sec / duration) * (W - PAD * 2);
+    }
+    return PAD + (i / Math.max(1, n - 1)) * (W - PAD * 2);
+  };
+
   const pts = useMemo(() => {
     if (!timeline || timeline.points.length === 0) return [];
     return timeline.points.map((d, i) => ({
-      x: PAD + (i / Math.max(1, timeline.points.length - 1)) * (W - PAD * 2),
+      x: xFor(d, i, timeline.points.length),
       ...d,
     }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeline]);
 
   const linePaths = useMemo(() => {
@@ -28,18 +39,28 @@ export function TimelineChart() {
     if (!timeline || timeline.points.length === 0) return result;
     for (const key of MODEL_KEYS) {
       const p = timeline.points.map((d, i) => ({
-        x: PAD + (i / Math.max(1, timeline.points.length - 1)) * (W - PAD * 2),
+        x: xFor(d, i, timeline.points.length),
         y: H - PAD - (d[key] / 100) * (H - PAD * 2),
       }));
       result[key] = p.map((pp, i) => `${i === 0 ? "M" : "L"}${pp.x},${pp.y}`).join(" ");
     }
     return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeline]);
 
   if (!timeline) return null;
 
   const xPts = pts.map((p) => ({ ...p, y: H - PAD - (p.xception / 100) * (H - PAD * 2) }));
   const peaks = xPts.filter((p, i) => i > 0 && i < xPts.length - 1 && p.xception > xPts[i - 1].xception && p.xception > xPts[i + 1].xception && p.xception > 20);
+
+  // Video-level averages from signals — the same numbers ReportPanel shows,
+  // so every surface agrees. Falls back to the last plotted point.
+  const avgFor = (key: (typeof MODEL_KEYS)[number]) => {
+    const found = signals?.models.find((m) => m.name.toLowerCase() === key);
+    if (found) return found.score;
+    const last = timeline.points[timeline.points.length - 1];
+    return last ? last[key] : 0;
+  };
 
   return (
     <div className="glass-card p-6">
@@ -82,17 +103,17 @@ export function TimelineChart() {
       </div>
 
       <div className="mt-8 grid grid-cols-3 gap-6">
-        {MODEL_KEYS.map((key) => {
-          const lastPoint = timeline.points[timeline.points.length - 1];
-          return (
-            <div key={key} className="p-4 rounded-lg nested-card flex items-center justify-between">
+        {MODEL_KEYS.map((key) => (
+          <div key={key} className="p-4 rounded-lg nested-card flex items-center justify-between">
+            <div>
               <p className="text-sm font-medium text-zinc-300">{MODEL_NAMES[key]}</p>
-              <p className="text-xl font-bold font-mono" style={{ color: MODEL_COLORS[key] }}>
-                {lastPoint[key].toFixed(1)}%
-              </p>
+              <p className="text-[10px] text-zinc-600 uppercase tracking-wider mt-0.5">video average</p>
             </div>
-          );
-        })}
+            <p className="text-xl font-bold font-mono" style={{ color: MODEL_COLORS[key] }}>
+              {avgFor(key).toFixed(1)}%
+            </p>
+          </div>
+        ))}
       </div>
     </div>
   );

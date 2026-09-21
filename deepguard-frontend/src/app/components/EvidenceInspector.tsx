@@ -11,7 +11,8 @@ const CAM_MODELS = ["xception", "spsl", "ucf"] as const;
 type CamModel = (typeof CAM_MODELS)[number];
 
 export function EvidenceInspector() {
-  const { evidence, videoId } = useDeepGuard();
+  const { evidence, videoId, fileName } = useDeepGuard();
+  const isImage = /\.(jpe?g|png)$/i.test(fileName ?? "");
   const [wipe, setWipe] = useState(50);
   const [selectedFrame, setSelectedFrame] = useState(0);
   const [camModel, setCamModel] = useState<CamModel>("xception");
@@ -52,9 +53,13 @@ export function EvidenceInspector() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Video Player */}
         <div className="flex flex-col h-full">
-          <h3 className="text-sm font-medium text-zinc-400 mb-4 flex items-center gap-2"><Eye className="w-4 h-4" />Original Video</h3>
+          <h3 className="text-sm font-medium text-zinc-400 mb-4 flex items-center gap-2"><Eye className="w-4 h-4" />{isImage ? "Original Photo" : "Original Video"}</h3>
           <div className="video-container flex-1">
-            <video src={api.getOriginalVideoUrl(videoId!)} controls className="w-full h-full object-cover relative z-[1]" />
+            {isImage ? (
+              <img src={api.getOriginalVideoUrl(videoId!)} alt="Original upload" className="w-full h-full object-contain relative z-[1]" />
+            ) : (
+              <video src={api.getOriginalVideoUrl(videoId!)} controls className="w-full h-full object-cover relative z-[1]" />
+            )}
           </div>
         </div>
 

@@ -53,6 +53,7 @@ interface TimelineData {
 
 interface AppState {
   videoId: string | null;
+  fileName: string | null;
   uploadStatus: "idle" | "queued" | "processing" | "done" | "error";
   progress: string | null;
   error: string | null;
@@ -72,6 +73,7 @@ const DeepGuardContext = createContext<DeepGuardContextType | null>(null);
 export function DeepGuardProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>({
     videoId: null,
+    fileName: null,
     uploadStatus: "idle",
     progress: null,
     error: null,
@@ -133,6 +135,7 @@ export function DeepGuardProvider({ children }: { children: React.ReactNode }) {
     stopPolling();
     setState({
       videoId: null,
+      fileName: file.name,
       uploadStatus: "queued",
       progress: null,
       error: null,
@@ -155,6 +158,7 @@ export function DeepGuardProvider({ children }: { children: React.ReactNode }) {
     stopPolling();
     setState({
       videoId: null,
+      fileName: null,
       uploadStatus: "idle",
       progress: null,
       error: null,

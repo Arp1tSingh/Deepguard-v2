@@ -182,7 +182,16 @@ def crop_face_bbox(frame_bgr, detector, res=FACE_RES):
     return crop, (x0, y0, x1, y1)
 
 
+IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
+
+
 def sample_frames_with_timestamps(video_path):
+    # Still photos are treated as a single-frame video (duration 0).
+    if os.path.splitext(video_path)[1].lower() in IMAGE_EXTS:
+        img = cv2.imread(video_path)
+        if img is None:
+            return [], 0.0
+        return [{"frame": img, "time_sec": 0.0}], 0.0
     cap = cv2.VideoCapture(video_path)
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
@@ -299,7 +308,6 @@ def analyze_video(video_path, frames_dir, progress_cb=None):
 
     model_video_scores = {}
     model_frame_scores = {}  # key -> {orig_frame_idx: prob}
-    xception_probs = {}
 
     # One model at a time: load -> score -> Grad-CAM -> write -> free.
     # Keeps peak RAM to a single model on 8GB CPU-only machines.
@@ -320,7 +328,7 @@ def analyze_video(video_path, frames_dir, progress_cb=None):
             tensor = to_model_tensor(
                 crop, config["mean"], config["std"]
             ).unsqueeze(0)
-            cam, prob_fake = compute_gradcam_for(key, model, tensor)
+            cam, _prob_fake = compute_gradcam_for(key, model, tensor)
             overlay = overlay_heatmap(crop, cam)
             cv2.imwrite(
                 os.path.join(heatmaps_dir, key, f"frame_{orig_i}_heatmap.jpg"),
@@ -333,7 +341,6 @@ def analyze_video(video_path, frames_dir, progress_cb=None):
                     os.path.join(frames_dir, f"frame_{orig_i}_heatmap.jpg"),
                     overlay,
                 )
-                xception_probs[orig_i] = prob_fake
 
         # Free memory immediately
         del model
@@ -362,7 +369,10 @@ def analyze_video(video_path, frames_dir, progress_cb=None):
             "time_sec": frame_info["time_sec"],
             "timestamp": format_timestamp(frame_info["time_sec"]),
             "face_detected": True,
-            "fake_probability": round(xception_probs[i] * 100, 1),  # this drives the "face XX%" badge
+            # Single-sourced from the batch Xception score (same value the
+            # timeline plots) — not a second Grad-CAM forward, so the badge
+            # can never drift from the chart.
+            "fake_probability": round(model_frame_scores["xception"][i] * 100, 1),  # this drives the "face XX%" badge
             "original_frame_file": f"frame_{i}_original.jpg",
             "heatmap_file": f"frame_{i}_heatmap.jpg",
         })

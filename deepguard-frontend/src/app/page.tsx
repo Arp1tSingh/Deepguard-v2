@@ -32,7 +32,7 @@ function HeroSection() {
             <CompactVerdict />
           </div>
         )}
-        <div className="h-full">
+        <div id="upload" className="h-full scroll-mt-24">
           <Dropzone />
         </div>
       </div>
@@ -58,30 +58,30 @@ function DashboardContent() {
 
   return (
     <div className="space-y-16 animate-fade-in content-container">
-      <section id="verdict" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+      <section id="verdict" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full scroll-mt-24">
         <SectionHeader title="Forensic Detailed Analysis" />
         <ReportPanel />
       </section>
 
       {/* Evidence Inspector gets full-bleed treatments or negative margins on desktop */}
-      <section id="evidence" className="w-full border-t border-b border-white/5 bg-[rgba(255,255,255,0.01)] py-16">
+      <section id="evidence" className="w-full border-t border-b border-white/5 bg-[rgba(255,255,255,0.01)] py-16 scroll-mt-24">
         <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-12 w-full">
           <SectionHeader title="Evidence Inspector" />
           <EvidenceInspector />
         </div>
       </section>
 
-      <section id="signals" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+      <section id="signals" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full scroll-mt-24">
         <SectionHeader title="Forensic Signals" />
         <SignalBreakdown />
       </section>
 
-      <section id="timeline" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+      <section id="timeline" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full scroll-mt-24">
         <SectionHeader title="Temporal Analysis" />
         <TimelineChart />
       </section>
 
-      <section id="export" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+      <section id="export" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full scroll-mt-24">
         <SectionHeader title="Export Report" />
         <ExportReport />
       </section>

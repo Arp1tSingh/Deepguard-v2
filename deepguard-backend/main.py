@@ -219,10 +219,24 @@ async def export_pdf(video_id: str):
     return FileResponse(out_path, media_type="application/pdf", filename=f"deepguard_report_{video_id}.pdf")
 
 
+_ORIGINAL_MEDIA_TYPES = {
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+}
+
+
 @app.get("/api/videos/{video_id}/original")
 async def get_original(video_id: str):
     job = _get_job(video_id)
-    return FileResponse(job["video_path"])
+    ext = os.path.splitext(job["video_path"])[1].lower()
+    return FileResponse(
+        job["video_path"],
+        media_type=_ORIGINAL_MEDIA_TYPES.get(ext),
+    )
 
 
 def _frame_record(video_id, index):

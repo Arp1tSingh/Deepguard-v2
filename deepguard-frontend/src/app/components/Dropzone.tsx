@@ -6,7 +6,7 @@ import { Upload, FileVideo, X, Sparkles, Loader2 } from "lucide-react";
 import { useDeepGuard } from "./DeepGuardProvider";
 
 const MAX_SIZE = 500 * 1024 * 1024;
-const ALLOWED = ["video/mp4", "video/webm", "video/quicktime"];
+const ALLOWED = ["video/mp4", "video/webm", "video/quicktime", "image/jpeg", "image/png"];
 
 export function Dropzone() {
   const { uploadFile, uploadStatus, progress, error: ctxError, reset, verdict } = useDeepGuard();
@@ -18,7 +18,7 @@ export function Dropzone() {
   const processFile = useCallback(async (file: File) => {
     setError(null);
     if (!ALLOWED.includes(file.type)) {
-      setError("Unsupported format. Use .mp4, .webm or .mov");
+      setError("Unsupported format. Use .mp4, .webm, .mov, .jpg or .png");
       return;
     }
     if (file.size > MAX_SIZE) {
@@ -99,7 +99,7 @@ export function Dropzone() {
             : "border-white/10 hover:border-white/20 hover:bg-white/[0.01]"
         }`}
       >
-        <input ref={fileRef} type="file" accept="video/*,.mp4,.webm,.mov" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); }} />
+        <input ref={fileRef} type="file" accept="video/*,image/jpeg,image/png,.mp4,.webm,.mov,.jpg,.jpeg,.png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); }} />
         {(error || ctxError) ? (
           <div className="animate-fade-in text-center">
             <X className="w-10 h-10 mx-auto text-[var(--fake)] mb-3" />
@@ -118,9 +118,9 @@ export function Dropzone() {
           <div className="text-center">
             <Upload className={`w-10 h-10 mx-auto mb-4 transition-colors duration-150 ${isDragging ? "text-[var(--accent)]" : "text-zinc-500"}`} />
             <p className="text-base font-medium mb-1 text-zinc-200">
-              {isDragging ? "Drop your video here" : "Drag & drop your video"}
+              {isDragging ? "Drop your file here" : "Drag & drop your video or photo"}
             </p>
-            <p className="text-xs text-zinc-500 font-mono mb-4">MP4, WebM, MOV · Max 500MB</p>
+            <p className="text-xs text-zinc-500 font-mono mb-4">MP4, WebM, MOV, JPG, PNG · Max 500MB</p>
             {!isDragging && !isProcessing && (
               <div className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-400 bg-zinc-800/50 px-3 py-1.5 rounded-md">
                 <Sparkles className="w-3 h-3 text-[var(--accent)]" />
