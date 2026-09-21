@@ -14,15 +14,19 @@ export function TimelineChart() {
   const W = 600;
   const H = 160;
   const PAD = 16;
+  const LEFT = 38; // y-axis gutter for tick labels
+  const Y_TICKS = [0, 25, 50, 75, 100];
+
+  const yFor = (v: number) => H - PAD - (v / 100) * (H - PAD * 2);
 
   // X position follows wall-clock time so dropped/skipped frames don't
   // compress time. Falls back to even index spacing for photos (duration 0).
   const xFor = (point: { time_sec: number }, i: number, n: number) => {
     const duration = timeline?.duration_sec ?? 0;
     if (duration > 0) {
-      return PAD + (point.time_sec / duration) * (W - PAD * 2);
+      return LEFT + (point.time_sec / duration) * (W - PAD - LEFT);
     }
-    return PAD + (i / Math.max(1, n - 1)) * (W - PAD * 2);
+    return LEFT + (i / Math.max(1, n - 1)) * (W - PAD - LEFT);
   };
 
   const pts = useMemo(() => {
@@ -40,7 +44,7 @@ export function TimelineChart() {
     for (const key of MODEL_KEYS) {
       const p = timeline.points.map((d, i) => ({
         x: xFor(d, i, timeline.points.length),
-        y: H - PAD - (d[key] / 100) * (H - PAD * 2),
+        y: yFor(d[key]),
       }));
       result[key] = p.map((pp, i) => `${i === 0 ? "M" : "L"}${pp.x},${pp.y}`).join(" ");
     }
@@ -69,21 +73,48 @@ export function TimelineChart() {
           <Clock className="w-4 h-4 text-zinc-400" />
           <span>Fake probability over time</span>
         </div>
-        <div className="flex items-center gap-4 text-xs font-medium bg-white/5 py-1.5 px-3 rounded-md">
-          {MODEL_KEYS.map((key) => (
-            <span key={key} className="flex items-center gap-1.5 text-zinc-300">
-              <span className="w-2.5 h-2.5 inline-block rounded-sm" style={{ backgroundColor: MODEL_COLORS[key] }} />
-              {MODEL_NAMES[key]}
+          <div className="flex items-center gap-4 text-xs font-medium bg-white/5 py-1.5 px-3 rounded-md">
+            {MODEL_KEYS.map((key) => (
+              <span key={key} className="flex items-center gap-1.5 text-zinc-300">
+                <span className="w-2.5 h-2.5 inline-block rounded-sm" style={{ backgroundColor: MODEL_COLORS[key] }} />
+                {MODEL_NAMES[key]}
+              </span>
+            ))}
+            <span className="flex items-center gap-1.5 text-zinc-500">
+              <span className="w-2 h-2 inline-block rounded-full bg-white opacity-60" />
+              Peak
             </span>
-          ))}
-        </div>
+          </div>
       </div>
 
       <div className="overflow-x-auto">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[500px] border border-white/5 bg-[rgba(255,255,255,0.015)] rounded-lg" style={{ height: 180 }}>
-          {[25, 50, 75].map((v) => (
-            <line key={v} x1={PAD} y1={H - PAD - (v / 100) * (H - PAD * 2)} x2={W - PAD} y2={H - PAD - (v / 100) * (H - PAD * 2)} stroke="rgba(255,255,255,0.05)" strokeDasharray="4,4" />
+          {Y_TICKS.map((v) => (
+            <g key={v}>
+              <line x1={LEFT} y1={yFor(v)} x2={W - PAD} y2={yFor(v)} stroke="rgba(255,255,255,0.05)" strokeDasharray="4,4" />
+              <text
+                x={LEFT - 6}
+                y={yFor(v)}
+                textAnchor="end"
+                dominantBaseline="middle"
+                fontSize={9}
+                fill="#71717a"
+                fontFamily="IBM Plex Mono, monospace"
+              >
+                {v}%
+              </text>
+            </g>
           ))}
+          <text
+            x={14}
+            y={PAD + 4}
+            textAnchor="middle"
+            fontSize={9}
+            fill="#52525b"
+            transform={`rotate(-90 14 ${PAD + 4})`}
+          >
+            Fake probability
+          </text>
           {MODEL_KEYS.map((key) => (
             <path key={`line-${key}`} d={linePaths[key]} fill="none" stroke={MODEL_COLORS[key]} strokeWidth={2} strokeLinejoin="round" />
           ))}
@@ -100,6 +131,9 @@ export function TimelineChart() {
             return <span key={i}>{timeline.points[idx]?.timestamp ?? ""}</span>;
           })}
         </div>
+        <p className="text-center text-[10px] text-zinc-600 mt-1 uppercase tracking-wider">
+          Video time (mm:ss)
+        </p>
       </div>
 
       <div className="mt-8 grid grid-cols-3 gap-6">
