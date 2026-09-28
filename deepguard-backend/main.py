@@ -211,6 +211,19 @@ async def get_timeline(video_id: str):
     return {"duration_sec": result["duration_sec"], "points": result["timeline"]}
 
 
+@app.get("/api/videos/{video_id}/explanation")
+async def get_explanation(video_id: str):
+    result = _get_done_result(video_id)
+    explanation = result.get("explanation")
+    if explanation is None:
+        # Analyses stored before explanations existed.
+        raise HTTPException(
+            status_code=404,
+            detail="No explanation stored for this video; re-upload to generate one.",
+        )
+    return explanation
+
+
 @app.get("/api/videos/{video_id}/export")
 async def export_pdf(video_id: str):
     result = _get_done_result(video_id)

@@ -11,13 +11,29 @@ const CAM_MODELS = ["xception", "spsl", "ucf"] as const;
 type CamModel = (typeof CAM_MODELS)[number];
 
 export function EvidenceInspector() {
-  const { evidence, videoId, fileName } = useDeepGuard();
+  const { evidence, videoId, fileName, focusFrame, setFocusFrame } = useDeepGuard();
   const isImage = /\.(jpe?g|png)$/i.test(fileName ?? "");
   const [wipe, setWipe] = useState(50);
   const [selectedFrame, setSelectedFrame] = useState(0);
   const [camModel, setCamModel] = useState<CamModel>("xception");
   const [dragging, setDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  // External frame focus (e.g. key-frame links in the explanation panel).
+  // Deferred a tick: applying another component's state update synchronously
+  // inside an effect triggers cascading renders.
+  useEffect(() => {
+    if (focusFrame === null) return;
+    const target = focusFrame;
+    const t = setTimeout(() => {
+      setSelectedFrame(target);
+      setWipe(50);
+      setFocusFrame(null);
+      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    return () => clearTimeout(t);
+  }, [focusFrame, setFocusFrame]);
 
   const frames = evidence?.frames ?? [];
   const activeFrame = frames[selectedFrame];
@@ -49,7 +65,7 @@ export function EvidenceInspector() {
   }
 
   return (
-    <div className="glass-card p-6 w-full">
+    <div ref={sectionRef} className="glass-card p-6 w-full scroll-mt-24">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Video Player */}
         <div className="flex flex-col h-full">

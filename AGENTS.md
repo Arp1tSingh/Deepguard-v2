@@ -86,6 +86,10 @@ browser, not at build time.
 - Export downloads the backend-generated PDF via blob + temp `<a download>`.
   Never navigate to the URL (loses SPA state). Surface fetch errors in the UI,
   never `console.error`-only.
+- The "Why this verdict" panel renders `GET /explanation` facts only.
+  Never hardcode explanatory prose — every displayed claim must trace to a
+  measured number. Key-frame links jump to EvidenceInspector via the
+  provider's `focusFrame` (set → consumed → cleared).
 
 ## Backend ↔ frontend contract
 
@@ -97,6 +101,7 @@ browser, not at build time.
 | GET | `/api/videos/{id}/evidence` | `{original_video_url, frames[]}` |
 | GET | `/api/videos/{id}/signals` | `{models[], agreement, agreement_spread}` |
 | GET | `/api/videos/{id}/timeline` | `{duration_sec, points[]}` (`xception`/`spsl`/`ucf` per point) |
+| GET | `/api/videos/{id}/explanation` | `{summary, models[] (+faithfulness), key_frames[], trend, spread_detail, caveats[]}` |
 | GET | `/api/videos/{id}/export` | PDF download |
 | GET | `/api/videos/{id}/original`, `/frames/{n}/original`, `/frames/{n}/heatmap` | raw media |
 

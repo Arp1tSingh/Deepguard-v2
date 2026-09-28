@@ -73,6 +73,17 @@ export const api = {
     return request(`/api/videos/${videoId}/timeline`);
   },
 
+  getExplanation(videoId: string): Promise<{
+    summary: { label: string; confidence: number; agreement: string; frames_analyzed: number; frames_skipped: number };
+    models: Array<{ key: string; score: number; std: number; faithfulness_drop: number | null; faithfulness_frame: number | null }>;
+    key_frames: Array<{ index: number; timestamp: string; score: number; reason: string }>;
+    trend: { direction: string; first_half: number; second_half: number };
+    spread_detail: { spread: number; outlier_key: string; outlier_score: number };
+    caveats: string[];
+  }> {
+    return request(`/api/videos/${videoId}/explanation`);
+  },
+
   async exportPDF(videoId: string): Promise<Blob> {
     let r: Response;
     try {

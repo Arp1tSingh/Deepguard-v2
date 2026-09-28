@@ -272,6 +272,91 @@ def format_timestamp(t_sec):
     return f"{m:02d}:{s:02d}"
 
 
+def build_explanation(valid_idx, frame_records, model_frame_scores,
+                      model_video_scores, faithfulness, verdict_label,
+                      mean_score, agreement, spread):
+    """Deterministic, measurement-grounded explanation facts.
+
+    Every value here is computed from this run's scores — no prose, no
+    guesses. The frontend renders these; nothing in this block is prose.
+    """
+    rec_by_idx = {fr["index"]: fr for fr in frame_records}
+    per_model_series = {
+        key: [model_frame_scores[key][i] for i in valid_idx]
+        for key in model_frame_scores
+    }
+
+    # Trend: first-half vs second-half mean of the Xception series.
+    xcep = per_model_series.get("xception", [])
+    half = max(1, len(xcep) // 2)
+    first_half = float(np.mean(xcep[:half])) if xcep else 0.0
+    second_half = float(np.mean(xcep[half:])) if len(xcep) > 1 else first_half
+    trend_diff = (second_half - first_half) * 100
+    if trend_diff > 5:
+        direction = "rising"
+    elif trend_diff < -5:
+        direction = "falling"
+    else:
+        direction = "stable"
+
+    # Key frames: top-2 valid frames by Xception score.
+    ranked = sorted(valid_idx, key=lambda i: model_frame_scores["xception"][i],
+                    reverse=True)
+    key_frames = [
+        {
+            "index": i,
+            "timestamp": rec_by_idx[i]["timestamp"],
+            "score": round(model_frame_scores["xception"][i] * 100, 1),
+            "reason": "highest fake probability"
+            if rank == 0 else "second-highest fake probability",
+        }
+        for rank, i in enumerate(ranked[:2])
+    ]
+
+    # Outlier: model farthest from the cross-model mean.
+    outlier_key = max(model_video_scores,
+                      key=lambda k: abs(model_video_scores[k] - mean_score))
+
+    return {
+        "summary": {
+            "label": verdict_label,
+            "confidence": round(mean_score * 100, 1),
+            "agreement": agreement,
+            "frames_analyzed": len(valid_idx),
+            "frames_skipped": len(frame_records) - len(valid_idx),
+        },
+        "models": [
+            {
+                "key": key,
+                "score": round(model_video_scores[key] * 100, 1),
+                "std": round(float(np.std(per_model_series[key])) * 100, 1)
+                if len(per_model_series[key]) > 1 else 0.0,
+                "faithfulness_drop": faithfulness.get(key, {}).get("drop"),
+                "faithfulness_frame": faithfulness.get(key, {}).get("frame_index"),
+            }
+            for key, *_ in MODEL_SPECS
+        ],
+        "key_frames": key_frames,
+        "trend": {
+            "direction": direction,
+            "first_half": round(first_half * 100, 1),
+            "second_half": round(second_half * 100, 1),
+        },
+        "spread_detail": {
+            "spread": round(spread * 100, 1),
+            "outlier_key": outlier_key,
+            "outlier_score": round(model_video_scores[outlier_key] * 100, 1),
+        },
+        "caveats": [
+            "SPSL heatmaps visualize its RGB branch only, not the frequency "
+            "phase-spectrum branch.",
+            "UCF heatmaps hook the forgery encoder and are approximate.",
+            "Heatmaps mark regions correlated with the prediction, not proof "
+            "of manipulation on their own.",
+        ],
+    }
+
+
 def analyze_video(video_path, frames_dir, progress_cb=None):
     """
     Runs the full pipeline. frames_dir is where per-frame original crops and
@@ -308,6 +393,8 @@ def analyze_video(video_path, frames_dir, progress_cb=None):
 
     model_video_scores = {}
     model_frame_scores = {}  # key -> {orig_frame_idx: prob}
+    model_cams = {}  # key -> {orig_frame_idx: cam array}, freed with the model
+    faithfulness = {}  # key -> {frame_index, base_score, masked_score, drop}
 
     # One model at a time: load -> score -> Grad-CAM -> write -> free.
     # Keeps peak RAM to a single model on 8GB CPU-only machines.
@@ -323,12 +410,14 @@ def analyze_video(video_path, frames_dir, progress_cb=None):
         model_video_scores[key] = float(np.mean(frame_probs))
 
         report(f"Computing Grad-CAM ({display_name})")
+        model_cams[key] = {}
         for orig_i in valid_idx:
             crop = crops_bboxes[orig_i][0]
             tensor = to_model_tensor(
                 crop, config["mean"], config["std"]
             ).unsqueeze(0)
             cam, _prob_fake = compute_gradcam_for(key, model, tensor)
+            model_cams[key][orig_i] = cam
             overlay = overlay_heatmap(crop, cam)
             cv2.imwrite(
                 os.path.join(heatmaps_dir, key, f"frame_{orig_i}_heatmap.jpg"),
@@ -341,6 +430,29 @@ def analyze_video(video_path, frames_dir, progress_cb=None):
                     os.path.join(frames_dir, f"frame_{orig_i}_heatmap.jpg"),
                     overlay,
                 )
+
+        # Faithfulness probe (always on, 1 extra forward): mask the top-20%
+        # CAM-activated region of this model's highest-scoring valid frame
+        # with the crop's mean color and re-score. A real drop means the
+        # heatmap genuinely marks decision-driving pixels.
+        rep_i = max(valid_idx, key=lambda i: model_frame_scores[key][i])
+        rep_crop = crops_bboxes[rep_i][0]
+        rep_cam = model_cams[key][rep_i]
+        mask = rep_cam >= np.quantile(rep_cam, 0.8)
+        masked_crop = rep_crop.copy()
+        masked_crop[mask] = rep_crop.mean(axis=(0, 1))
+        base_score = model_frame_scores[key][rep_i]
+        masked_score = score_batch(
+            model, config,
+            [to_model_tensor(masked_crop, config["mean"], config["std"])],
+        )[0]
+        faithfulness[key] = {
+            "frame_index": rep_i,
+            "base_score": round(base_score * 100, 1),
+            "masked_score": round(masked_score * 100, 1),
+            "drop": round((base_score - masked_score) * 100, 1),
+        }
+        del model_cams[key]
 
         # Free memory immediately
         del model
@@ -431,4 +543,8 @@ def analyze_video(video_path, frames_dir, progress_cb=None):
         ],
         "frames": frame_records,
     }
+    result["explanation"] = build_explanation(
+        valid_idx, frame_records, model_frame_scores, model_video_scores,
+        faithfulness, verdict_label, mean_score, agreement, spread,
+    )
     return result

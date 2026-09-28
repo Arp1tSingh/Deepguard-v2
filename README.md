@@ -262,3 +262,10 @@ Notes:
   tighten both before exposing the backend publicly.
 - Per-model accuracy notes come from a small 20-clip eval — treat as
   indicative, not a guarantee.
+- **Explainability is measurement-grounded, not generative.** The "Why this
+  verdict" panel is built deterministically from this run's scores (no LLM,
+  nothing hallucinated): every claim traces to a number shown elsewhere on
+  the page. Each analysis carries its own heatmap faithfulness check
+  (mask-top-region → re-score drop) per model; a ~0 drop is reported
+  honestly instead of overselling the heatmap. Heatmaps mark regions
+  correlated with the prediction — correlation, not proof of manipulation.
