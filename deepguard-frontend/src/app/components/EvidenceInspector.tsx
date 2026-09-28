@@ -88,9 +88,9 @@ export function EvidenceInspector() {
                 className={`shrink-0 w-32 rounded-lg overflow-hidden nested-card cursor-pointer interactive-card transition-all duration-150 ${
                   selectedFrame === i ? "border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)]" : ""
                 }`}>
-                <div className="aspect-video bg-[rgba(255,255,255,0.02)] flex items-center justify-center relative overflow-hidden">
+                <div className="aspect-square bg-[rgba(255,255,255,0.02)] flex items-center justify-center relative overflow-hidden">
                   {f.face_detected && f.original_frame_url ? (
-                    <img src={api.getFrameOriginalUrl(videoId!, i)} alt={`Frame ${i}`} className="w-full h-full object-cover" />
+                    <img src={api.getFrameOriginalUrl(videoId!, i)} alt={`Frame ${i}`} className="w-full h-full object-contain" />
                   ) : (
                     <ScanFace className="w-8 h-8 text-zinc-700" />
                   )}
@@ -148,23 +148,24 @@ export function EvidenceInspector() {
             </div>
           ) : (
             <div ref={containerRef}
-              className="flex-1 relative rounded-xl overflow-hidden cursor-ew-resize select-none border border-white/5"
-              style={{ minHeight: "240px", background: "#0a0a0f" }}
-              onMouseDown={(e) => { setDragging(true); updateWipe(e.clientX); }}>
+              className="relative w-full rounded-xl overflow-hidden cursor-ew-resize select-none border border-white/5"
+              style={{ aspectRatio: "1 / 1", maxHeight: "520px", background: "#0a0a0f" }}
+              onMouseDown={(e) => { setDragging(true); updateWipe(e.clientX); }}
+            >
               {/* Heatmap base layer (right side revealed) */}
               <div className="absolute inset-0 bg-[rgba(255,255,255,0.02)] flex items-center justify-center">
                  <img
                    key={`${selectedFrame}-${camModel}`}
                    src={api.getFrameHeatmapUrl(videoId!, selectedFrame, camModel)}
                    alt={`${MODEL_NAMES[camModel]} heatmap`}
-                   className="w-full h-full object-cover pointer-events-none"
+                   className="w-full h-full object-contain pointer-events-none"
                  />
               </div>
               {/* Original layer clipped to left of wipe */}
               <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - wipe}% 0 0)` }}>
                 <div className="absolute inset-0 flex items-center justify-center">
                   {activeFrame?.original_frame_url ? (
-                    <img src={api.getFrameOriginalUrl(videoId!, selectedFrame)} alt="Original" className="w-full h-full object-cover pointer-events-none" />
+                    <img src={api.getFrameOriginalUrl(videoId!, selectedFrame)} alt="Original" className="w-full h-full object-contain pointer-events-none" />
                   ) : (
                     <p className="text-sm text-zinc-500">Original Frame</p>
                   )}
