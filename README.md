@@ -1,24 +1,10 @@
 # DeepGuard — AI-Powered Deepfake Detection
 
-DeepGuard is a full-stack deepfake detection platform. Upload a video and get a
-forensic verdict from **three independently-verified detectors** (UCF, SPSL,
-Xception from [DeepfakeBench](https://github.com/SCLBD/DeepfakeBench)), plus
-**Grad-CAM heatmap overlays** showing which face regions drove the prediction,
-per-model signal breakdowns, a temporal confidence timeline, and a downloadable
-PDF report.
-
-- **Frontend** (`deepguard-frontend/`): Next.js 16 + React 19 + Tailwind CSS v4
-  dashboard with verdict summary, evidence inspector (original vs. Grad-CAM
-  wipe slider), forensic signals, temporal analysis chart, and PDF export.
-- **Backend** (`deepguard-backend/`): FastAPI service that runs the 3 models on
-  CPU, computes Grad-CAM on Xception, and serves verdict/evidence/signals/
-  timeline/export endpoints.
-- **Models** (`DeepfakeBench/`): vendored DeepfakeBench training code used for
-  inference (checkpoints are **not** committed — see setup below).
-
----
-
-## Architecture
+Upload a video, get a forensic verdict from **three independent detectors**
+(UCF, SPSL, Xception from
+[DeepfakeBench](https://github.com/SCLBD/DeepfakeBench)), plus **Grad-CAM
+heatmap overlays**, per-model signal breakdowns, a temporal confidence
+timeline, and a downloadable PDF report.
 
 ```
 Browser (:3000) ──REST──> FastAPI (:8000) ──> UCF / SPSL / Xception (CPU)
@@ -28,142 +14,177 @@ Browser (:3000) ──REST──> FastAPI (:8000) ──> UCF / SPSL / Xception 
      └── polls /status every 2.5s, then fetches verdict/evidence/signals/timeline
 ```
 
-Analysis is CPU-bound and takes ~25–30s per video on a decent machine
-(2–5 min on low-end hardware). The UI is built around that latency with real
-stage labels (`Sampling frames → Running UCF → Running SPSL → Running
+Analysis is CPU-bound (~25–30s per video on a decent machine, longer on
+low-end hardware). The UI shows real stage labels
+(`Sampling frames → Running UCF → Running SPSL → Running
 Xception → Computing Grad-CAM`), not a fake spinner.
+
+> This guide is written for **Windows** (PowerShell). macOS/Linux commands
+> differ only where noted.
 
 ---
 
-## Prerequisites
+## 1. What you need
 
-| Tool | Version |
-| ---- | ------- |
-| Python | 3.10+ (3.14 works) |
-| Node.js | 18+ |
-| npm | 9+ |
-| git | any recent |
+| Tool | Version | Windows notes |
+| ---- | ------- | ------------- |
+| Python | 3.10+ (3.14 works) | Install from [python.org](https://www.python.org/downloads/), tick **"Add python.exe to PATH"**. Verify with `py --version`. |
+| Node.js | 18+ | Install LTS from [nodejs.org](https://nodejs.org/). Verify with `node --version` and `npm --version`. |
+| git | any recent | Install from [git-scm.com](https://git-scm.com/). |
+| Disk | ~4 GB free | Model weights (~350 MB) + PyTorch (~2 GB). |
 
 No GPU required — everything runs on CPU.
 
 ---
 
-## 1. Clone the repo
+## 2. Clone the repo
 
-```bash
+Open **PowerShell** and run:
+
+```powershell
 git clone https://github.com/Arp1tSingh/Deepguard-v2.git
-cd Deepguard-v2   # (folder is named "deepguard" locally)
+cd Deepguard-v2   # folder may be named "deepguard" locally
 ```
+
+> If `git` is not recognized, close and reopen PowerShell after installing
+> git. If cloning into `C:\` fails with permission errors, use your user
+> folder (e.g. `cd $HOME\Projects` first).
 
 ---
 
-## 2. Backend setup
+## 3. Backend setup (FastAPI, port 8000)
 
-```bash
+Open a **first PowerShell terminal** and keep it for the backend.
+
+```powershell
 cd deepguard-backend
 
 # Create and activate a virtual environment
-python3 -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
+py -m venv venv
+.\venv\Scripts\Activate.ps1
+```
 
-# Install dependencies (frozen set — includes everything the DeepfakeBench
-# models need; dlib/imgaug are intentionally excluded, see stubs/README.md)
+> If activation is blocked (`running scripts is disabled on this system`),
+> run PowerShell **as Administrator** once and execute:
+> `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
+> Then close the admin window and activate again in your normal terminal.
+> (`python -m venv venv` also works if `py` is not on PATH.)
+
+Install dependencies:
+
+```powershell
 pip install -r requirements.txt
 ```
 
-### 2a. Model checkpoints (required for real inference)
+> **Low-end machines:** install the CPU-only PyTorch first to skip ~2 GB of
+> unused CUDA libraries, then the rest:
+> ```powershell
+> pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+> pip install -r requirements.txt
+> ```
+> Do **not** install `dlib` or `imgaug` manually — they are training-time-only
+> deps with committed stubs (`stubs/`). `opencv-python-headless` must stay on
+> 4.x (v5 removed `CascadeClassifier`, which face detection uses).
 
-The `.pth` weights are git-ignored (too large for GitHub). Download the three
-checkpoints and place them here:
+Download the face-detector models (one-time, ~10 MB, git-ignored):
+
+```powershell
+py scripts\download_face_models.py
+```
+
+Place the three detector checkpoints here (git-ignored, download links are in
+the official DeepfakeBench README/releases):
 
 ```
-DeepfakeBench/training/weights/
+DeepfakeBench\training\weights\
 ├── ucf_best.pth        (~188 MB)
 ├── spsl_best.pth       (~88 MB)
 └── xception_best.pth   (~88 MB)
 ```
 
-Links to these files are in the official DeepfakeBench README/releases.
-Without them the backend still boots but falls back to mock scores.
+> Without these files the backend still starts but falls back to mock scores
+> — verdicts will look confident but mean nothing. Always check for the
+> fallback warning in the backend terminal (see Verify below).
 
-> **Low-end machines (8 GB RAM, no GPU):** install the CPU-only PyTorch to
-> save ~2 GB of CUDA bundles, and keep videos short. The backend loads one
-> model at a time and frees it immediately to stay within memory limits.
+Start the backend:
 
-### 2b. Run the backend
-
-```bash
-# from deepguard-backend/, with venv activated
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```powershell
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-Verify: http://localhost:8000/api/health → `{"status":"ok"}`
-API docs: http://localhost:8000/docs
+**Verify:** open http://localhost:8000/api/health in your browser — you must
+see `{"status":"ok"}`. API docs live at http://localhost:8000/docs.
+
+> Run exactly **one** worker and no `--reload` flag here. Jobs live in a
+> process-local dict, so extra workers break status polling. The
+> `torch.jit.script` FutureWarning on Python 3.14 is benign noise — ignore it.
 
 ---
 
-## 3. Frontend setup
+## 4. Frontend setup (Next.js, port 3000)
 
-```bash
+Open a **second PowerShell terminal** and keep it for the frontend
+(the backend keeps running in the first one).
+
+```powershell
 cd deepguard-frontend
 
 npm install
 
 # Point the frontend at the backend
-cp .env.example .env.local
-# .env.local should contain:
+copy .env.example .env.local
+# .env.local must contain:
 # NEXT_PUBLIC_DEEPGUARD_API_URL=http://localhost:8000
 
 npm run dev
 ```
 
-Open http://localhost:3000, drop in an MP4/WebM/MOV (max 500 MB), and watch
-the verdict appear after analysis completes.
+**Verify:** open http://localhost:3000 — the DeepGuard dashboard loads.
 
-Other commands:
-
-```bash
-npm run build   # production build
-npm run start   # serve production build
-npm run lint    # eslint
-```
-
-> `NEXT_PUBLIC_*` vars are inlined at **build time** — restart `npm run dev`
-> after changing `.env.local`.
+> `NEXT_PUBLIC_*` variables are baked in at **build time**. If you edit
+> `.env.local`, stop (`Ctrl+C`) and restart `npm run dev`.
+>
+> Other commands: `npm run lint` (must pass clean), `npm run build`
+> (production build), `npm run start` (serve the production build).
 
 ---
 
-## Deploying (production)
+## 5. Use it
 
-- **Backend** → Oracle Cloud Always Free VPS via Docker Compose. Full
-  step-by-step guide: [`DEPLOY_ORACLE.md`](DEPLOY_ORACLE.md) (VM setup,
-  firewall + Security List ports, weights via `scp`, HTTPS with DuckDNS +
-  nginx + certbot, reboot survival, CORS tightening).
-- **Frontend** → Vercel. Import the repo (root `deepguard-frontend`),
-  set `NEXT_PUBLIC_DEEPGUARD_API_URL` to the HTTPS backend URL **before**
-  building — a localhost-baked build fails silently in the browser.
-
----
-
-## 4. Usage
-
-1. **Upload** a video via drag & drop (or click to browse).
-2. Wait through the staged progress indicator (~25–30s).
-3. The page auto-scrolls to the result. A compact **verdict card**
-   (FAKE/REAL + confidence ring) appears next to the dropzone.
-4. Inspect **Evidence** (original vs. Grad-CAM wipe slider),
-   **Forensic Signals** (per-model bars + agreement), and the
-   **Temporal Analysis** 3-line chart (UCF/SPSL/Xception over time).
-5. **Export Report** downloads the backend-generated PDF (no client-side
-   PDF generation — the SPA state is preserved).
+1. In http://localhost:3000, drag & drop an MP4/WebM/MOV (max 500 MB).
+2. Wait through the staged progress (~25–30s). The 2.5s poll loop doubles as
+   a keep-alive, so leave the tab open.
+3. The page auto-scrolls to the result: compact **verdict card**
+   (FAKE/REAL + confidence ring), then **Evidence** (original vs. Grad-CAM
+   wipe slider), **Forensic Signals** (per-model bars + agreement), and
+   **Temporal Analysis** (3-line UCF/SPSL/Xception chart).
+4. **Export Report** downloads the backend-generated PDF (SPA state is kept).
 
 Re-uploading a new video fully resets all sections.
+
+---
+
+## 6. Troubleshooting (Windows)
+
+| Symptom | Fix |
+| ------- | --- |
+| `py` not recognized | Reinstall Python with **"Add python.exe to PATH"** ticked, reopen PowerShell; or use `python` instead of `py`. |
+| `.\venv\Scripts\Activate.ps1` blocked | `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` in an admin PowerShell, then retry in a normal one. |
+| `npm` not recognized | Reinstall Node.js LTS, reopen PowerShell. |
+| Port 8000/3000 already in use | Stop the other program, or use another port (backend: `--port 8001`; frontend: `npm run dev -- --port 3001` — then update `.env.local` and restart). |
+| Backend warns about mock models / missing checkpoints | Drop the 3 `.pth` files into `DeepfakeBench\training\weights\` and restart uvicorn. |
+| Frontend shows blank/errors, backend unreachable | Backend terminal must still be running; `http://localhost:8000/api/health` must return `{"status":"ok"}`. Check Windows Firewall if the browser can't reach it. |
+| Changed `.env.local` but nothing happened | Restart `npm run dev` — `NEXT_PUBLIC_*` is inlined at build/dev start. |
+| Analysis is very slow | Expected on CPU (25–30s+, minutes on low-end). Keep videos short; close heavy apps. |
+| `torch.jit.script` FutureWarning | Benign on Python 3.14 — ignore. |
+| Path-too-long errors on clone/install | Clone into a short path like `C:\dg`, or enable long paths in Windows. |
 
 ---
 
 ## API contract (backend → frontend)
 
 Base URL: `NEXT_PUBLIC_DEEPGUARD_API_URL` (default `http://localhost:8000`).
+Contract changes are additive — existing field names never change.
 
 | Method | Endpoint | Returns |
 | ------ | -------- | ------- |
@@ -172,11 +193,10 @@ Base URL: `NEXT_PUBLIC_DEEPGUARD_API_URL` (default `http://localhost:8000`).
 | GET | `/api/videos/{id}/verdict` | `{label, confidence, agreement, models[]}` |
 | GET | `/api/videos/{id}/evidence` | `{original_video_url, frames[]}` |
 | GET | `/api/videos/{id}/signals` | `{models[], agreement, agreement_spread}` |
-| GET | `/api/videos/{id}/timeline` | `{duration_sec, points[]}` |
-| GET | `/api/videos/{id}/export` | PDF file download |
-| GET | `/api/videos/{id}/original` | raw video |
-| GET | `/api/videos/{id}/frames/{n}/original` | frame JPEG |
-| GET | `/api/videos/{id}/frames/{n}/heatmap` | Grad-CAM JPEG |
+| GET | `/api/videos/{id}/timeline` | `{duration_sec, points[]}` (`xception`/`spsl`/`ucf` per point) |
+| GET | `/api/videos/{id}/explanation` | `{summary, models[] (+faithfulness), key_frames[], trend, spread_detail, caveats[]}` |
+| GET | `/api/videos/{id}/export` | PDF download |
+| GET | `/api/videos/{id}/original`, `/frames/{n}/original`, `/frames/{n}/heatmap` | raw media |
 
 Notes:
 
@@ -184,8 +204,8 @@ Notes:
   the UI shows both separately on purpose.
 - A frame's `face_confidence` is Xception's per-frame P(fake), **not**
   face-detection confidence — the UI labels it "Fake Prob".
-- All media URLs from the backend are relative paths; the frontend prefixes
-  them with the API base URL.
+- Backend media URLs are relative paths; the frontend prefixes them with the
+  API base URL.
 
 ---
 
@@ -193,7 +213,8 @@ Notes:
 
 ```
 deepguard/
-├── README.md                  ← you are here
+├── README.md                  ← you are here (Windows install guide)
+├── AGENTS.md                  ← contributor guide (how to work in the repo)
 ├── DeepfakeBench/             ← vendored detector code (weights git-ignored)
 │   └── training/weights/      ← place ucf/spsl/xception .pth here (local only)
 ├── deepguard-backend/
@@ -201,6 +222,7 @@ deepguard/
 │   ├── analysis.py            ← 3-model pipeline + Grad-CAM frame extraction
 │   ├── gradcam.py             ← Xception Grad-CAM
 │   ├── pdf_export.py          ← server-side PDF report
+│   ├── scripts/download_face_models.py ← one-time face-model download
 │   ├── requirements.txt
 │   └── storage/               ← per-video results (git-ignored, local only)
 └── deepguard-frontend/
@@ -220,52 +242,52 @@ deepguard/
 `DeepfakeBench/` is the upstream open-source project
 ([SCLBD/DeepfakeBench](https://github.com/SCLBD/DeepfakeBench)) that provides
 the UCF, SPSL, and Xception detector implementations. It is copied into this
-repo (rather than referenced as a submodule or package) for two reasons:
+repo (rather than a submodule or package) because the backend imports it
+directly (`analysis.py` loads detector classes, configs, and `.pth`
+checkpoints from `DeepfakeBench/training`), and because it carries one local
+patch: `training/dataset/lsda_dataset.py` called
+`torch.cuda.get_device_name()` at import time and crashed on GPU-less
+machines — the vendored copy guards that call so CPU-only setups work.
 
-1. **The backend imports it directly.** `deepguard-backend/analysis.py` adds
-   `DeepfakeBench/training` to `sys.path` and loads the detector classes,
-   backbone networks, YAML configs, and `.pth` checkpoints from there. Without
-   this folder, the backend boots but falls back to mock scores.
-2. **It carries local patches.** At least one upstream file is patched for
-   this project — `training/dataset/lsda_dataset.py` calls
-   `torch.cuda.get_device_name()` at import time, which crashes on machines
-   without an NVIDIA GPU. The vendored copy guards that call so CPU-only
-   setups work. A fresh upstream clone would not include this fix.
+Only a slice is used (`detectors/`, `networks/`, `loss/`, `metrics/`, three
+YAML configs). The three `.pth` checkpoints (~350 MB) are **git-ignored**;
+what's committed is source code (~5 MB).
 
-Notes:
+---
 
-- Only a slice of it is actually used (`detectors/`, `networks/`, `loss/`,
-  `metrics/`, three YAML configs). The `analysis/`, `preprocessing/`,
-  `datasets/` folders and training scripts are unused by DeepGuard.
-- The heavy part — the three `.pth` checkpoints (~350 MB) — is **git-ignored**
-  and lives only on your machine under `DeepfakeBench/training/weights/`.
-  What's committed is source code (~5 MB).
+## Deploying (production)
+
+- **Backend** → Oracle Cloud VPS via Docker Compose. Full guide:
+  [`DEPLOY_ORACLE.md`](DEPLOY_ORACLE.md) (VM setup, firewall ports, weights
+  via `scp`, HTTPS with DuckDNS + nginx + certbot, reboot survival, CORS
+  tightening).
+- **Frontend** → Vercel. Import the repo (root `deepguard-frontend`), set
+  `NEXT_PUBLIC_DEEPGUARD_API_URL` to the HTTPS backend URL **before**
+  building — a localhost-baked build fails silently in the browser.
+
+---
 
 ## Known limitations
 
 - **CPU-only inference** — slow on low-end hardware by design; GPU support is
   a future improvement.
 - **Face detection** uses OpenCV's DNN SSD detector (`res10`, CPU-friendly),
-  gated by confidence (≥ 0.3) plus min/max-size and aspect-ratio checks — far
-  more robust than the old Haar cascades to angle, lighting, and partial
-  occlusion, without needing dlib. Frames with no passing detection are
-  skipped (no model inference, no heatmap, no timeline point) and surface in
-  the UI as "No face detected" instead of silently analyzing background.
+  gated by confidence (≥ 0.3) plus size/aspect checks. Frames with no passing
+  detection are skipped and surface as "No face detected" instead of silently
+  analyzing background.
 - **Grad-CAM is per-model** (UCF / SPSL / Xception), selectable in the
-  Evidence Inspector. SPSL's heatmap visualizes its RGB branch only, not the
-  frequency phase-spectrum branch — partial explainability, not the full
-  story. UCF's heatmap hooks the forgery encoder via the shared-forgery
-  head and is likewise approximate.
+  Evidence Inspector. SPSL's heatmap covers its RGB branch only, not the
+  frequency phase-spectrum branch; UCF's hooks the forgery encoder — both
+  approximate.
 - **Single-process job registry** persisted to `storage/` — fine for local
   use, not production traffic (no queue, retry, or cleanup).
 - **CORS is wide-open** (`allow_origins=["*"]`) and there is **no auth** —
-  tighten both before exposing the backend publicly.
-- Per-model accuracy notes come from a small 20-clip eval — treat as
-  indicative, not a guarantee.
+  fine for local dev, must be tightened before any public hosting.
+- Per-model accuracy notes come from a small 20-clip eval — indicative, not
+  a guarantee.
 - **Explainability is measurement-grounded, not generative.** The "Why this
-  verdict" panel is built deterministically from this run's scores (no LLM,
-  nothing hallucinated): every claim traces to a number shown elsewhere on
-  the page. Each analysis carries its own heatmap faithfulness check
-  (mask-top-region → re-score drop) per model; a ~0 drop is reported
-  honestly instead of overselling the heatmap. Heatmaps mark regions
-  correlated with the prediction — correlation, not proof of manipulation.
+  verdict" panel is built deterministically from the run's scores (no LLM):
+  every claim traces to a shown number, including a per-model heatmap
+  faithfulness check (mask-top-region → re-score drop). A ~0 drop is reported
+  honestly. Heatmaps mark regions correlated with the prediction —
+  correlation, not proof of manipulation.
